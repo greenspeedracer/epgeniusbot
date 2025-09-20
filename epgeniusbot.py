@@ -1,4 +1,3 @@
-import os
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -7,9 +6,6 @@ import re
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
-
-GUILD_ID = 1418831593337786462
-guild = discord.Object(id=GUILD_ID)
 
 file_id_pattern = re.compile(r"/file/d/([a-zA-Z0-9_-]+)")
 
@@ -27,7 +23,7 @@ async def gdrive(interaction: discord.Interaction, url: str):
 
 @bot.event
 async def on_ready():
-    await bot.tree.sync(guild=guild)
+    await bot.tree.sync()
     print(f"Logged in as {bot.user} and commands synced to guild {GUILD_ID}!")
 
 bot.run(os.environ["EPGBOT_TOKEN"])
