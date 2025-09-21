@@ -20,7 +20,6 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-@app_commands.guilds(GSR_GUILD, EPGENIUS_GUILD)
 @bot.tree.command(name="playlist", description="Convert Google Drive Playlist Share Link into Playlist Export Link")
 @app_commands.describe(url="Google Drive Playlist Share Link")
 async def gdrive(interaction: discord.Interaction, url: str):
@@ -35,23 +34,25 @@ async def gdrive(interaction: discord.Interaction, url: str):
     download_url = f"https://drive.google.com/uc?export=download&id={file_id}&confirm=true"
     await interaction.response.send_message(f"Playlist Export Link:\n{download_url}", ephemeral=True)
 
-@bot.tree.command(name="syncgsr", guild=GSR_GUILD, description="Sync Commands to the GSR Server")
+@bot.tree.command(name="syncgsr", description="Sync Commands to the GSR Server")
 async def syncgsr(interaction: discord.Interaction):
     if interaction.user.id not in ADMINS:
         await interaction.response.send_message("You do not have permission to run this command.", ephemeral=True)
         return
-    await interaction.response.defer(ephemeral=True)  
-    synced = await interaction.client.tree.sync(guild=GSR_GUILD)  
-    await interaction.followup.send(f"Commands synced to GSR guild {GSR_GUILD.id}. Synced {len(synced)} commands.", ephemeral=True) 
+    await interaction.response.defer(ephemeral=True)
+    bot.tree.copy_global_to(guild=GSR_GUILD)
+    synced = await interaction.client.tree.sync(guild=GSR_GUILD) 
+    await interaction.followup.send(f"Commands synced to GSR guild {GSR_GUILD.id}. Synced {len(synced)} commands.", ephemeral=True)
 
-@bot.tree.command(name="syncepgenius", guild=GSR_GUILD, description="Sync Commands to the EPGenius Server")
+@bot.tree.command(name="syncepgenius", description="Sync Commands to the EPGenius Server")
 async def syncepgenius(interaction: discord.Interaction):
     if interaction.user.id not in ADMINS:
         await interaction.response.send_message("You do not have permission to run this command.", ephemeral=True)
         return
-    await interaction.response.defer(ephemeral=True)  
-    synced = await interaction.client.tree.sync(guild=EPGENIUS_GUILD)  
-    await interaction.followup.send(f"Commands synced to EPGenius guild {EPGENIUS_GUILD.id}. Synced {len(synced)} commands.", ephemeral=True) 
+    await interaction.response.defer(ephemeral=True)
+    bot.tree.copy_global_to(guild=EPGENIUS_GUILD)
+    synced = await interaction.client.tree.sync(guild=EPGENIUS_GUILD) 
+    await interaction.followup.send(f"Commands synced to EPGenius guild {EPGENIUS_GUILD.id}. Synced {len(synced)} commands.", ephemeral=True)
 
 @bot.event
 async def on_ready():
