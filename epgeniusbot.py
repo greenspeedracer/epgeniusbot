@@ -12,6 +12,7 @@ TOKEN = os.getenv("EPGENIUSBOT_TOKEN")
 ADMINS = list(map(int, os.getenv("ADMIN_IDS", "").split(",")))
 GSR_GUILD = discord.Object(id=int(os.getenv("GSR_GUILD_ID")))
 EPGENIUS_GUILD = discord.Object(id=int(os.getenv("EPGENIUS_GUILD_ID")))
+ALL_GUILDS = [GSR_GUILD, EPGENIUS_GUILD]
 
 FILEID_PATTERN = re.compile(r"/file/d/([a-zA-Z0-9_-]+)")
 
@@ -30,7 +31,6 @@ class MyBot(commands.Bot):
 bot = MyBot()
 
 @bot.tree.command(name="playlist", guild=GSR_GUILD, description="Convert Google Drive Playlist Share Link into Playlist Export Link")
-@bot.tree.command(name="playlist", guild=EPGENIUS_GUILD, description="Convert Google Drive Playlist Share Link into Playlist Export Link")
 @app_commands.describe(url="Google Drive Playlist Share Link")
 async def gdrive(interaction: discord.Interaction, url: str):
     match = FILEID_PATTERN.search(url)
@@ -45,7 +45,6 @@ async def gdrive(interaction: discord.Interaction, url: str):
     await interaction.response.send_message(f"Playlist Export Link:\n{download_url}", ephemeral=True)
 
 @bot.tree.command(name="syncgsr", guild=GSR_GUILD, description="Sync Commands to GSR")
-@bot.tree.command(name="syncgsr", guild=EPGENIUS_GUILD, description="Sync Commands to GSR")
 async def syncgsr(interaction: discord.Interaction):
     if interaction.user.id in ADMINS:
         await interaction.client.tree.clear_commands(guild=GSR_GUILD)
@@ -55,7 +54,6 @@ async def syncgsr(interaction: discord.Interaction):
         await interaction.response.send_message("You do not have permission to run this.", ephemeral=True)    
 
 @bot.tree.command(name="syncepgenius", guild=GSR_GUILD, description="Sync Commands to EPGenius Server")
-@bot.tree.command(name="syncepgenius", guild=EPGENIUS_GUILD, description="Sync Commands to EPGenius Server")
 async def syncepgenius(interaction: discord.Interaction):
     if interaction.user.id in ADMINS:
         await interaction.client.tree.clear_commands(guild=EPGENIUS_GUILD)
