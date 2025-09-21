@@ -99,28 +99,43 @@ async def epglookup(interaction: discord.Interaction, query: str):
     try:
         number_query = int(query)
         playlist = next((p for p in PLAYLISTS if p["number"] == number_query), None)
+        if not playlist:
+            await interaction.response.send_message(f"No playlist found for #{number_query}.", ephemeral=True)
+            return
+
+        embed = discord.Embed(title=f"Playlist #{playlist['number']} EPG Info", color=discord.Color.blue())
+        embed.add_field(name="Owner", value=playlist['owner'] or "N/A", inline=True)
+        embed.add_field(name="Provider", value=playlist['provider'], inline=True)
+        epg_url = playlist['epg_url'] or "No EPG URL available"
+        embed.add_field(name="EPG URL", value=epg_url, inline=False)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        return
     except ValueError:
         owners = [p["owner"] for p in PLAYLISTS if p["owner"]]
-        best_match, score = process.extractOne(query, owners)
-        if score < 60:
+        matches = process.extract(query, owners, scorer=process.fuzz.token_sort_ratio)
+        filtered_matches = [m for m in matches if m[1] >= 60]
+
+        if not filtered_matches:
             await interaction.response.send_message(f"No close matches found for '{query}'.", ephemeral=True)
             return
-        playlist = next((p for p in PLAYLISTS if p["owner"] == best_match), None)
 
-    if not playlist:
-        await interaction.response.send_message(f"No playlist found for '{query}'.", ephemeral=True)
-        return
+        embed = discord.Embed(title=f"Playlists matching '{query}'", color=discord.Color.blue())
+        seen_owners = set()
 
-    embed = discord.Embed(title=f"Playlist #{playlist['number']} EPG Info", color=discord.Color.blue())
-    embed.add_field(name="Owner", value=playlist['owner'] or "N/A", inline=True)
-    embed.add_field(name="Provider", value=playlist['provider'], inline=True)
-    epg_url = playlist['epg_url']
-    if not epg_url or epg_url.lower() in ["n/a", "use provider’s epg"]:
-        embed.add_field(name="EPG URL", value="No EPG URL available", inline=False)
-    else:
-        embed.add_field(name="EPG URL", value=f"[Link]({epg_url})", inline=False)
-    await interaction.response.send_message(embed=embed, ephemeral=True)
+        for match_name, score in filtered_matches:
+            if match_name in seen_owners:
+                continue
+            seen_owners.add(match_name)
 
+            matched_playlists = [p for p in PLAYLISTS if p["owner"] == match_name]
+            for p in matched_playlists:
+                epg_display = p['epg_url'] if p['epg_url'] and p['epg_url'].lower() not in ["n/a", "use provider’s epg"] else "No EPG URL"
+                embed.add_field(
+                    name=f"#{p['number']} - {p['owner']}",
+                    value=f"Provider: {p['provider']}\nEPG: {epg_display}",
+                    inline=False
+                )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @bot.event
 async def on_ready():
