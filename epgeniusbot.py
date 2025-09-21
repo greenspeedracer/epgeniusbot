@@ -55,7 +55,7 @@ async def syncepgenius(interaction: discord.Interaction):
 
 @bot.event
 async def on_ready():
-    await bot.tree.sync(guild=guild)
+    await bot.tree.sync(guild=EPGENIUS_GUILD)
     print(f'{bot.user} is online!')
     print(f"GSR Guild: {GSR_GUILD.id}")
     print(f"EPGenius Guild: {EPGENIUS_GUILD.id}")
