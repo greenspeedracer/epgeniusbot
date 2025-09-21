@@ -4,7 +4,7 @@ from discord import app_commands
 from discord.ext import commands
 import re
 import os
-from thefuzz import process
+from thefuzz import fuzz, process
 from dotenv import load_dotenv
 
 load_dotenv()
