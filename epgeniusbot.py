@@ -2,6 +2,7 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
+from discord.ui import View, Select
 import re
 import os
 from thefuzz import fuzz, process
@@ -80,12 +81,40 @@ async def syncepgenius(interaction: discord.Interaction):
     synced = await interaction.client.tree.sync(guild=EPGENIUS_GUILD) 
     await interaction.followup.send(f"Commands synced to EPGenius guild {EPGENIUS_GUILD.id}. Synced {len(synced)} commands.", ephemeral=True)
 
+class OwnerSelect(Select):
+    def __init__(self, owners, playlists):
+        options = [discord.SelectOption(label=owner, description=f"Owner: {owner}") for owner in owners]
+        super().__init__(placeholder="Choose an owner...", min_values=1, max_values=1, options=options)
+        self.playlists = playlists
+
+    async def callback(self, interaction: discord.Interaction):
+        selected_owner = self.values[0]
+        matched_playlists = [p for p in self.playlists if p.get("owner") == selected_owner]
+
+        embed = discord.Embed(title=f"Playlists for owner '{selected_owner}'", color=discord.Color.blue())
+        for p in matched_playlists:
+            epg_url = p.get("epg_url", "No EPG URL")
+            embed.add_field(
+                name=f"#{p['number']} - {selected_owner}",
+                value=f"Provider: {p.get('provider', 'N/A')}\nEPG: {epg_url}",
+                inline=False,
+            )
+        await interaction.response.edit_message(embed=embed, view=None)
+
+class OwnerSelectView(View):
+    def __init__(self, owners, playlists):
+        super().__init__(timeout=60)
+        self.add_item(OwnerSelect(owners, playlists))
+
 @bot.tree.command(name="epg", description="Lookup EPG URL by Playlist Number or Owner. Type List to See All.")
-@app_commands.describe(query="Playlist number, owner or 'list'")
+@app_commands.describe(query="Playlist number, owner name, or 'list'/'owner'")
 async def epglookup(interaction: discord.Interaction, query: str):
+    # If you instead want to load from API, replace PLAYLISTS here with your API fetch
+    playlists = PLAYLISTS
+
     if query.lower() == "list":
         embed = discord.Embed(title="All Playlists", color=discord.Color.blue())
-        for p in PLAYLISTS:
+        for p in playlists:
             epg_display = p['epg_url'] if p['epg_url'] and p['epg_url'].lower() not in ["n/a", "use provider’s epg"] else "No EPG URL"
             owner_display = p['owner'] or "N/A"
             embed.add_field(
@@ -93,14 +122,23 @@ async def epglookup(interaction: discord.Interaction, query: str):
                 value=f"Provider: {p['provider']}\nEPG: {epg_display}",
                 inline=False
             )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed, ephemeral=False)
+        return
+
+    if query.lower() == "owner":
+        owners = sorted({p['owner'] for p in playlists if p.get("owner")})
+        if not owners:
+            await interaction.response.send_message("No owners found.", ephemeral=False)
+            return
+        view = OwnerSelectView(owners, playlists)
+        await interaction.response.send_message("Select an owner:", view=view, ephemeral=False)
         return
 
     try:
         number_query = int(query)
-        playlist = next((p for p in PLAYLISTS if p["number"] == number_query), None)
+        playlist = next((p for p in playlists if p["number"] == number_query), None)
         if not playlist:
-            await interaction.response.send_message(f"No playlist found for #{number_query}.", ephemeral=True)
+            await interaction.response.send_message(f"No playlist found for #{number_query}.", ephemeral=False)
             return
 
         embed = discord.Embed(title=f"Playlist #{playlist['number']} EPG Info", color=discord.Color.blue())
@@ -108,15 +146,18 @@ async def epglookup(interaction: discord.Interaction, query: str):
         embed.add_field(name="Provider", value=playlist['provider'], inline=True)
         epg_url = playlist['epg_url'] or "No EPG URL available"
         embed.add_field(name="EPG URL", value=epg_url, inline=False)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed, ephemeral=False)
         return
     except ValueError:
-        owners = [p["owner"] for p in PLAYLISTS if p["owner"]]
+        owners = [p["owner"] for p in playlists if p.get("owner")]
         matches = process.extract(query, owners, scorer=fuzz.WRatio)
         filtered_matches = [m for m in matches if m[1] >= 60]
 
         if not filtered_matches:
-            await interaction.response.send_message(f"No close matches found for '{query}'.", ephemeral=True)
+            # fallback to owner selection dropdown
+            owners = sorted(set(owners))
+            view = OwnerSelectView(owners, playlists)
+            await interaction.response.send_message(f"No close matches found for '{query}'. Please select an owner:", view=view, ephemeral=False)
             return
 
         embed = discord.Embed(title=f"Playlists matching '{query}'", color=discord.Color.blue())
@@ -127,15 +168,15 @@ async def epglookup(interaction: discord.Interaction, query: str):
                 continue
             seen_owners.add(match_name)
 
-            matched_playlists = [p for p in PLAYLISTS if p["owner"] == match_name]
+            matched_playlists = [p for p in playlists if p["owner"] == match_name]
             for p in matched_playlists:
                 epg_display = p['epg_url'] if p['epg_url'] and p['epg_url'].lower() not in ["n/a", "use provider’s epg"] else "No EPG URL"
                 embed.add_field(
-                    name=f"#{p['number']} - {p['owner']}",
+                    name=f"#{p['number']} - {p['owner']} (score {score})",
                     value=f"Provider: {p['provider']}\nEPG: {epg_display}",
                     inline=False
                 )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed, ephemeral=False)
 
 
 
