@@ -100,6 +100,9 @@ async def syncgsr(interaction: discord.Interaction):
 
 @bot.tree.command(name="syncepgenius", guild=EPGENIUS_GUILD, description="Sync Commands to the EPGenius Server")
 async def syncepgenius(interaction: discord.Interaction):
+    if interaction.user.id not in ADMINS:
+        await interaction.response.send_message("You do not have permission to run this command.", ephemeral=True)
+        return
     await interaction.response.defer(ephemeral=True)
     bot.tree.copy_global_to(guild=EPGENIUS_GUILD)
     synced = await interaction.client.tree.sync(guild=EPGENIUS_GUILD) 
@@ -207,7 +210,7 @@ async def epglookup(interaction: discord.Interaction, query: str):
 @bot.event
 async def on_ready():
     await bot.tree.sync()
-    await set_command_permissions(bot, EPGENIUS_GUILD.id, "syncepgenius", ALLOWED_ROLE_IDS)
+
     print(f'{bot.user} is online!')
     print(f"GSR Guild: {GSR_GUILD.id}")
     print(f"EPGenius Guild: {EPGENIUS_GUILD.id}")
