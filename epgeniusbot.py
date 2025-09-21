@@ -106,8 +106,8 @@ class OwnerSelectView(View):
         super().__init__(timeout=60)
         self.add_item(OwnerSelect(owners, playlists))
 
-@bot.tree.command(name="epg", description="Lookup EPG URL by Playlist Number or Owner. Type List to See All.")
-@app_commands.describe(query="Playlist number, owner name, or 'list'/'owner'")
+@bot.tree.command(name="epg", description="Lookup EPG URL by Playlist Number or Owner. Type `List` to See All. Type `Owner` to Select from Owners.")
+@app_commands.describe(query="Playlist number, owner name, `list`, or `owner`.")
 async def epglookup(interaction: discord.Interaction, query: str):
 
     playlists = PLAYLISTS
