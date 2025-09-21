@@ -23,7 +23,7 @@ class MyBot(commands.Bot):
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):
-        await self.tree.clear_commands(guild=GSR_GUILD)
+        self.tree.clear_commands(guild=GSR_GUILD)
         await self.tree.sync(guild=GSR_GUILD)
         print(f"Logged in as {self.user}. Commands synced to guild {GSR_GUILD.id} on startup.")
 
