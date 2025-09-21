@@ -37,7 +37,7 @@ async def gdrive(interaction: discord.Interaction, url: str):
 @bot.tree.command(name="syncgsr", guild=GSR_GUILD, description="Sync Commands to GSR")
 async def syncgsr(interaction: discord.Interaction):
     if interaction.user.id in ADMINS:
-        await interaction.client.tree.clear_commands(guild=GSR_GUILD)
+        interaction.client.tree.clear_commands(guild=GSR_GUILD)
         await interaction.client.tree.sync(guild=GSR_GUILD)
         await interaction.response.send_message(f"Commands cleared and resynced to GSR guild {GSR_GUILD.id}.", ephemeral=True)
     else:
@@ -46,7 +46,7 @@ async def syncgsr(interaction: discord.Interaction):
 @bot.tree.command(name="syncepgenius", guild=GSR_GUILD, description="Sync Commands to EPGenius Server")
 async def syncepgenius(interaction: discord.Interaction):
     if interaction.user.id in ADMINS:
-        await interaction.client.tree.clear_commands(guild=EPGENIUS_GUILD)
+        interaction.client.tree.clear_commands(guild=EPGENIUS_GUILD)
         await interaction.client.tree.sync(guild=EPGENIUS_GUILD)
         await interaction.response.send_message(f"Commands cleared and resynced to EPGenius guild {EPGENIUS_GUILD.id}.", ephemeral=True)
     else:
