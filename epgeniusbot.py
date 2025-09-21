@@ -4,6 +4,7 @@ from discord import app_commands
 from discord.ext import commands
 import re
 import os
+from thefuzz import process
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -15,6 +16,31 @@ EPGENIUS_GUILD = discord.Object(id=int(os.getenv("EPGENIUS_GUILD_ID")))
 ALL_GUILDS = [GSR_GUILD, EPGENIUS_GUILD]
 
 FILEID_PATTERN = re.compile(r"/file/d/([a-zA-Z0-9_-]+)")
+
+PLAYLISTS = [
+    {"number": 1, "owner": "ferteque", "provider": "Strong", "epg_url": "https://github.com/ferteque/Curated-M3U-Repository/raw/refs/heads/main/epg1.xml.gz"},
+    {"number": 2, "owner": "jams", "provider": "Strong", "epg_url": "https://github.com/ferteque/Curated-M3U-Repository/raw/refs/heads/main/epg2.xml.gz"},
+    {"number": 3, "owner": None, "provider": "France OTT", "epg_url": None},
+    {"number": 4, "owner": "edsanchez", "provider": "Eagle", "epg_url": "https://github.com/ferteque/Curated-M3U-Repository/raw/refs/heads/main/epg4.xml.gz"},
+    {"number": 5, "owner": None, "provider": "Mega", "epg_url": "https://github.com/ferteque/Curated-M3U-Repository/raw/refs/heads/main/epg5.xml.gz"},
+    {"number": 6, "owner": "GanjaRelease", "provider": "Strong", "epg_url": "https://github.com/ferteque/Curated-M3U-Repository/raw/refs/heads/main/epg6.xml.gz"},
+    {"number": 7, "owner": "SouthwestBudz", "provider": "Trex", "epg_url": "https://github.com/ferteque/Curated-M3U-Repository/raw/refs/heads/main/epg7.xml.gz"},
+    {"number": 8, "owner": "GanjaRelease", "provider": "Lion", "epg_url": "https://github.com/ferteque/Curated-M3U-Repository/raw/refs/heads/main/epg8.xml.gz"},
+    {"number": 9, "owner": "GanjaRelease", "provider": "Trex", "epg_url": "https://github.com/ferteque/Curated-M3U-Repository/raw/refs/heads/main/epg9.xml.gz"},
+    {"number": 10, "owner": None, "provider": "Strong", "epg_url": "https://epg.722222227.xyz/epg/0/0_nodummy.xml.gz"},
+    {"number": 11, "owner": "smauggmg", "provider": "Strong", "epg_url": "https://github.com/ferteque/Curated-M3U-Repository/raw/refs/heads/main/epg11.xml.gz"},
+    {"number": 12, "owner": "thedoobles", "provider": "Strong", "epg_url": "https://github.com/ferteque/Curated-M3U-Repository/raw/refs/heads/main/epg12.xml.gz"},
+    {"number": 13, "owner": "ferteque", "provider": "Strong", "epg_url": "https://github.com/ferteque/Curated-M3U-Repository/raw/refs/heads/main/epg13.xml.gz"},
+    {"number": 14, "owner": "tropaz", "provider": "Strong", "epg_url": "https://github.com/ferteque/Curated-M3U-Repository/raw/refs/heads/main/epg14.xml.gz"},
+    {"number": 15, "owner": "tropaz", "provider": "Trex", "epg_url": "https://github.com/ferteque/Curated-M3U-Repository/raw/refs/heads/main/epg15.xml.gz"},
+    {"number": 16, "owner": "CorB3n", "provider": "Eagle", "epg_url": "https://xmltvfr.fr/xmltv/xmltv_fr.xml.gz"},
+    {"number": 17, "owner": "OldJob8069", "provider": "B1G", "epg_url": "Use Provider’s EPG"},
+    {"number": 18, "owner": "Corb3n", "provider": "Trex", "epg_url": "https://xmltvfr.fr/xmltv/xmltv_fr.xml.gz"},
+    {"number": 19, "owner": "AMMAR", "provider": "Strong", "epg_url": "https://raw.githubusercontent.com/ammartaha/EPG/refs/heads/master/Guide.xml"},
+    {"number": 20, "owner": "GanjaRelease", "provider": "Strong", "epg_url": "https://github.com/ferteque/Curated-M3U-Repository/raw/refs/heads/main/epg6.xml.gz"},
+    {"number": 21, "owner": "NewEraSCTV", "provider": "Strong", "epg_url": "https://github.com/ferteque/Curated-M3U-Repository/raw/refs/heads/main/epg21.xml.gz"},
+    {"number": 23, "owner": "JayNowa", "provider": "Trex", "epg_url": "https://github.com/ferteque/Curated-M3U-Repository/raw/refs/heads/main/epg23.xml.gz"},
+]
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -34,7 +60,7 @@ async def gdrive(interaction: discord.Interaction, url: str):
     download_url = f"https://drive.google.com/uc?export=download&id={file_id}&confirm=true"
     await interaction.response.send_message(f"Playlist Export Link:\n{download_url}", ephemeral=True)
 
-@bot.tree.command(name="syncgsr", description="Sync Commands to the GSR Server")
+@bot.tree.command(name="syncgsr", guild=GSR_GUILD, description="Sync Commands to the GSR Server")
 async def syncgsr(interaction: discord.Interaction):
     if interaction.user.id not in ADMINS:
         await interaction.response.send_message("You do not have permission to run this command.", ephemeral=True)
@@ -44,7 +70,7 @@ async def syncgsr(interaction: discord.Interaction):
     synced = await interaction.client.tree.sync(guild=GSR_GUILD) 
     await interaction.followup.send(f"Commands synced to GSR guild {GSR_GUILD.id}. Synced {len(synced)} commands.", ephemeral=True)
 
-@bot.tree.command(name="syncepgenius", description="Sync Commands to the EPGenius Server")
+@bot.tree.command(name="syncepgenius", guild=GSR_GUILD, description="Sync Commands to the EPGenius Server")
 async def syncepgenius(interaction: discord.Interaction):
     if interaction.user.id not in ADMINS:
         await interaction.response.send_message("You do not have permission to run this command.", ephemeral=True)
@@ -53,6 +79,48 @@ async def syncepgenius(interaction: discord.Interaction):
     bot.tree.copy_global_to(guild=EPGENIUS_GUILD)
     synced = await interaction.client.tree.sync(guild=EPGENIUS_GUILD) 
     await interaction.followup.send(f"Commands synced to EPGenius guild {EPGENIUS_GUILD.id}. Synced {len(synced)} commands.", ephemeral=True)
+
+@bot.tree.command(name="epg", description="Lookup EPG URL by Playlist Number or Owner. Type List to See All.")
+@app_commands.describe(query="Playlist number, owner or 'list'")
+async def epglookup(interaction: discord.Interaction, query: str):
+    if query.lower() == "list":
+        embed = discord.Embed(title="All Playlists", color=discord.Color.blue())
+        for p in PLAYLISTS:
+            epg_display = p['epg_url'] if p['epg_url'] and p['epg_url'].lower() not in ["n/a", "use provider’s epg"] else "No EPG URL"
+            owner_display = p['owner'] or "N/A"
+            embed.add_field(
+                name=f"#{p['number']} - {owner_display}",
+                value=f"Provider: {p['provider']}\nEPG: {epg_display}",
+                inline=False
+            )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        return
+
+    try:
+        number_query = int(query)
+        playlist = next((p for p in PLAYLISTS if p["number"] == number_query), None)
+    except ValueError:
+        owners = [p["owner"] for p in PLAYLISTS if p["owner"]]
+        best_match, score = process.extractOne(query, owners)
+        if score < 60:
+            await interaction.response.send_message(f"No close matches found for '{query}'.", ephemeral=True)
+            return
+        playlist = next((p for p in PLAYLISTS if p["owner"] == best_match), None)
+
+    if not playlist:
+        await interaction.response.send_message(f"No playlist found for '{query}'.", ephemeral=True)
+        return
+
+    embed = discord.Embed(title=f"Playlist #{playlist['number']} EPG Info", color=discord.Color.blue())
+    embed.add_field(name="Owner", value=playlist['owner'] or "N/A", inline=True)
+    embed.add_field(name="Provider", value=playlist['provider'], inline=True)
+    epg_url = playlist['epg_url']
+    if not epg_url or epg_url.lower() in ["n/a", "use provider’s epg"]:
+        embed.add_field(name="EPG URL", value="No EPG URL available", inline=False)
+    else:
+        embed.add_field(name="EPG URL", value=f"[Link]({epg_url})", inline=False)
+    await interaction.response.send_message(embed=embed, ephemeral=True)
+
 
 @bot.event
 async def on_ready():
