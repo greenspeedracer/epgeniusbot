@@ -111,31 +111,40 @@ async def epglookup(interaction: discord.Interaction, query: str):
         await interaction.response.send_message(embed=embed, ephemeral=True)
         return
     except ValueError:
+        from thefuzz import fuzz, process
+
         owners = [p["owner"] for p in PLAYLISTS if p["owner"]]
-        matches = process.extract(query, owners, scorer=process.fuzz.token_sort_ratio)
+
+        matches = process.extract(query, owners, scorer=fuzz.WRatio)
         filtered_matches = [m for m in matches if m[1] >= 60]
 
         if not filtered_matches:
             await interaction.response.send_message(f"No close matches found for '{query}'.", ephemeral=True)
             return
-
+        best_match, best_score = filtered_matches[0]
         embed = discord.Embed(title=f"Playlists matching '{query}'", color=discord.Color.blue())
-        seen_owners = set()
 
-        for match_name, score in filtered_matches:
-            if match_name in seen_owners:
-                continue
-            seen_owners.add(match_name)
+        matched_playlists = [p for p in PLAYLISTS if p["owner"] == best_match]
+        for p in matched_playlists:
+            epg_display = p['epg_url'] if p['epg_url'] and p['epg_url'].lower() not in ["n/a", "use provider’s epg"] else "No EPG URL"
+            embed.add_field(
+                name=f"#{p['number']} - {p['owner']} (best match, score {best_score})",
+                value=f"Provider: {p['provider']}\nEPG: {epg_display}",
+                inline=False
+    )
 
+        for match_name, score in filtered_matches[1:]:
             matched_playlists = [p for p in PLAYLISTS if p["owner"] == match_name]
             for p in matched_playlists:
                 epg_display = p['epg_url'] if p['epg_url'] and p['epg_url'].lower() not in ["n/a", "use provider’s epg"] else "No EPG URL"
                 embed.add_field(
-                    name=f"#{p['number']} - {p['owner']}",
+                    name=f"#{p['number']} - {p['owner']} (score {score})",
                     value=f"Provider: {p['provider']}\nEPG: {epg_display}",
                     inline=False
-                )
+        )
+
         await interaction.response.send_message(embed=embed, ephemeral=True)
+
 
 @bot.event
 async def on_ready():
