@@ -122,23 +122,23 @@ async def epglookup(interaction: discord.Interaction, query: str):
                 value=f"Provider: {p['provider']}\nEPG: {epg_display}",
                 inline=False
             )
-        await interaction.response.send_message(embed=embed, ephemeral=False)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
         return
 
     if query.lower() == "owner":
         owners = sorted({p['owner'] for p in playlists if p.get("owner")})
         if not owners:
-            await interaction.response.send_message("No owners found.", ephemeral=False)
+            await interaction.response.send_message("No owners found.", ephemeral=True)
             return
         view = OwnerSelectView(owners, playlists)
-        await interaction.response.send_message("Select an owner:", view=view, ephemeral=False)
+        await interaction.response.send_message("Select an owner:", view=view, ephemeral=True)
         return
 
     try:
         number_query = int(query)
         playlist = next((p for p in playlists if p["number"] == number_query), None)
         if not playlist:
-            await interaction.response.send_message(f"No playlist found for #{number_query}.", ephemeral=False)
+            await interaction.response.send_message(f"No playlist found for #{number_query}.", ephemeral=True)
             return
 
         embed = discord.Embed(title=f"Playlist #{playlist['number']} EPG Info", color=discord.Color.blue())
@@ -146,7 +146,7 @@ async def epglookup(interaction: discord.Interaction, query: str):
         embed.add_field(name="Provider", value=playlist['provider'], inline=True)
         epg_url = playlist['epg_url'] or "No EPG URL available"
         embed.add_field(name="EPG URL", value=epg_url, inline=False)
-        await interaction.response.send_message(embed=embed, ephemeral=False)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
         return
     except ValueError:
         owners = [p["owner"] for p in playlists if p.get("owner")]
@@ -157,7 +157,7 @@ async def epglookup(interaction: discord.Interaction, query: str):
             # fallback to owner selection dropdown
             owners = sorted(set(owners))
             view = OwnerSelectView(owners, playlists)
-            await interaction.response.send_message(f"No close matches found for '{query}'. Please select an owner:", view=view, ephemeral=False)
+            await interaction.response.send_message(f"No close matches found for '{query}'. Please select an owner:", view=view, ephemeral=True)
             return
 
         embed = discord.Embed(title=f"Playlists matching '{query}'", color=discord.Color.blue())
@@ -176,7 +176,7 @@ async def epglookup(interaction: discord.Interaction, query: str):
                     value=f"Provider: {p['provider']}\nEPG: {epg_display}",
                     inline=False
                 )
-        await interaction.response.send_message(embed=embed, ephemeral=False)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 
