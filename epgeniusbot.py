@@ -23,11 +23,13 @@ class MyBot(commands.Bot):
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):
+        await self.tree.clear_commands(guild=GSR_GUILD)
         await self.tree.sync(guild=GSR_GUILD)
         print(f"Logged in as {self.user}. Commands synced to guild {GSR_GUILD.id} on startup.")
 
 bot = MyBot()
 
+@app_commands.guilds(GSR_GUILD, EPGENIUS_GUILD)
 @bot.tree.command(name="playlist", description="Convert Google Drive Playlist Share Link into Playlist Export Link")
 @app_commands.describe(url="Google Drive Playlist Share Link")
 async def gdrive(interaction: discord.Interaction, url: str):
@@ -42,20 +44,23 @@ async def gdrive(interaction: discord.Interaction, url: str):
     download_url = f"https://drive.google.com/uc?export=download&id={file_id}&confirm=true"
     await interaction.response.send_message(f"Playlist Export Link:\n{download_url}", ephemeral=True)
 
+@app_commands.guilds(GSR_GUILD, EPGENIUS_GUILD)
 @bot.tree.command(name="syncgsr", description="Sync Commands to GSR")
 async def syncgsr(interaction: discord.Interaction):
     if interaction.user.id in ADMINS:
-        await bot.tree.sync(guild=GSR_GUILD)
-        await interaction.response.send_message(f"Commands synced to guild {GSR_GUILD.id}.", ephemeral=True)
+        await self.tree.clear_commands(guild=GSR_GUILD)
+        await self.tree.sync(guild=GSR_GUILD)
+        await interaction.response.send_message(f"Commands cleared and resynced to GSR guild {GSR_GUILD.id}.", ephemeral=True)
     else:
         await interaction.response.send_message("You do not have permission to run this.", ephemeral=True)    
 
-
+@app_commands.guilds(GSR_GUILD, EPGENIUS_GUILD)
 @bot.tree.command(name="syncepgenius", description="Sync Commands to EPGenius Server")
 async def syncepgenius(interaction: discord.Interaction):
     if interaction.user.id in ADMINS:
-        await bot.tree.sync(guild=EPGENIUS_GUILD)
-        await interaction.response.send_message(f"Commands synced to guild {EPGENIUS_GUILD.id}.", ephemeral=True)
+        await self.tree.clear_commands(guild=EPGENIUS_GUILD)
+        await self.tree.sync(guild=EPGENIUS_GUILD)
+        await interaction.response.send_message(f"Commands cleared and resynced to EPGenius guild {EPGENIUS_GUILD.id}.", ephemeral=True)
     else:
         await interaction.response.send_message("You do not have permission to run this.", ephemeral=True)
 
