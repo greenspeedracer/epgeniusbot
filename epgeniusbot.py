@@ -12,6 +12,7 @@ load_dotenv()
 
 TOKEN = os.getenv("EPGENIUSBOT_TOKEN")
 ADMINS = list(map(int, os.getenv("ADMIN_IDS", "").split(",")))
+ALLOWED_ROLE_IDS = list(map(int, os.getenv("ALLOWED_ROLE_IDS", "").split(",")))
 GSR_GUILD = discord.Object(id=int(os.getenv("GSR_GUILD_ID")))
 EPGENIUS_GUILD = discord.Object(id=int(os.getenv("EPGENIUS_GUILD_ID")))
 ALL_GUILDS = [GSR_GUILD, EPGENIUS_GUILD]
@@ -47,6 +48,32 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+async def set_command_permissions(bot, guild_id, command_name, allowed_role_ids):
+    guild = bot.get_guild(guild_id)
+    if not guild:
+        print(f"Guild {guild_id} not found")
+        return
+
+    command = bot.tree.get_command(command_name)
+    if not command:
+        print(f"Command '{command_name}' not found")
+        return
+
+    permissions = [
+        app_commands.CommandPermission(
+            id=role_id,
+            type=app_commands.PermissionType.role,
+            permission=True
+        )
+        for role_id in allowed_role_ids
+    ]
+
+    try:
+        await command.edit_permissions(guild=guild, permissions=permissions)
+        print(f"Set permissions for command '{command_name}' in guild {guild_id}")
+    except Exception as e:
+        print(f"Failed to set permissions: {e}")
+
 @bot.tree.command(name="playlist", description="Convert Google Drive Playlist Share Link into Playlist Export Link")
 @app_commands.describe(url="Google Drive Playlist Share Link")
 async def gdrive(interaction: discord.Interaction, url: str):
@@ -71,11 +98,8 @@ async def syncgsr(interaction: discord.Interaction):
     synced = await interaction.client.tree.sync(guild=GSR_GUILD) 
     await interaction.followup.send(f"Commands synced to GSR guild {GSR_GUILD.id}. Synced {len(synced)} commands.", ephemeral=True)
 
-@bot.tree.command(name="syncepgenius", guild=GSR_GUILD, description="Sync Commands to the EPGenius Server")
+@bot.tree.command(name="syncepgenius", guild=EPGENIUS_GUILD, description="Sync Commands to the EPGenius Server")
 async def syncepgenius(interaction: discord.Interaction):
-    if interaction.user.id not in ADMINS:
-        await interaction.response.send_message("You do not have permission to run this command.", ephemeral=True)
-        return
     await interaction.response.defer(ephemeral=True)
     bot.tree.copy_global_to(guild=EPGENIUS_GUILD)
     synced = await interaction.client.tree.sync(guild=EPGENIUS_GUILD) 
@@ -182,11 +206,13 @@ async def epglookup(interaction: discord.Interaction, query: str):
 
 @bot.event
 async def on_ready():
-    await bot.tree.sync(guild=EPGENIUS_GUILD)
+    await bot.tree.sync()
+    await set_command_permissions(bot, EPGENIUS_GUILD.id, "syncepgenius", ALLOWED_ROLE_IDS)
     print(f'{bot.user} is online!')
     print(f"GSR Guild: {GSR_GUILD.id}")
     print(f"EPGenius Guild: {EPGENIUS_GUILD.id}")
     print(f"Admins: {ADMINS}")
+    print(f"Allowed Role IDs: {ALLOWED_ROLE_IDS}")
     
     for guild in ALL_GUILDS:
         guild_commands = [cmd.name for cmd in bot.tree.get_commands(guild=guild)]
