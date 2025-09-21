@@ -48,8 +48,8 @@ async def gdrive(interaction: discord.Interaction, url: str):
 @bot.tree.command(name="syncgsr", description="Sync Commands to GSR")
 async def syncgsr(interaction: discord.Interaction):
     if interaction.user.id in ADMINS:
-        await self.tree.clear_commands(guild=GSR_GUILD)
-        await self.tree.sync(guild=GSR_GUILD)
+        await interaction.client.tree.clear_commands(guild=GSR_GUILD)
+        await interaction.client.tree.sync(guild=GSR_GUILD)
         await interaction.response.send_message(f"Commands cleared and resynced to GSR guild {GSR_GUILD.id}.", ephemeral=True)
     else:
         await interaction.response.send_message("You do not have permission to run this.", ephemeral=True)    
@@ -58,8 +58,8 @@ async def syncgsr(interaction: discord.Interaction):
 @bot.tree.command(name="syncepgenius", description="Sync Commands to EPGenius Server")
 async def syncepgenius(interaction: discord.Interaction):
     if interaction.user.id in ADMINS:
-        await self.tree.clear_commands(guild=EPGENIUS_GUILD)
-        await self.tree.sync(guild=EPGENIUS_GUILD)
+        await interaction.client.tree.clear_commands(guild=EPGENIUS_GUILD)
+        await interaction.client.tree.sync(guild=EPGENIUS_GUILD)
         await interaction.response.send_message(f"Commands cleared and resynced to EPGenius guild {EPGENIUS_GUILD.id}.", ephemeral=True)
     else:
         await interaction.response.send_message("You do not have permission to run this.", ephemeral=True)
