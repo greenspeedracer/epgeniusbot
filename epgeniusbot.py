@@ -210,7 +210,8 @@ async def epglookup(interaction: discord.Interaction, query: str):
 @bot.event
 async def on_ready():
     await bot.tree.sync(guild=EPGENIUS_GUILD)
-
+    await bot.tree.sync(guild=GSR_GUILD)
+    await set_command_permissions(bot, EPGENIUS_GUILD.id, "syncepgenius", ALLOWED_ROLE_IDS)
     print(f'{bot.user} is online!')
     print(f"GSR Guild: {GSR_GUILD.id}")
     print(f"EPGenius Guild: {EPGENIUS_GUILD.id}")
