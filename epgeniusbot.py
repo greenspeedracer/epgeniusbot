@@ -34,7 +34,7 @@ async def gdrive(interaction: discord.Interaction, url: str):
     download_url = f"https://drive.google.com/uc?export=download&id={file_id}&confirm=true"
     await interaction.response.send_message(f"Playlist Export Link:\n{download_url}", ephemeral=True)
 
-@bot.tree.command(name="syncgsr", description="Sync Commands to GSR")
+@bot.tree.command(name="syncgsr", guild=GSR_GUILD, description="Sync Commands to GSR")
 async def syncgsr(interaction: discord.Interaction):
     if interaction.user.id in ADMINS:
         await interaction.client.tree.clear_commands(guild=GSR_GUILD)
@@ -43,7 +43,7 @@ async def syncgsr(interaction: discord.Interaction):
     else:
         await interaction.response.send_message("You do not have permission to run this.", ephemeral=True)    
 
-@bot.tree.command(name="syncepgenius", description="Sync Commands to EPGenius Server")
+@bot.tree.command(name="syncepgenius", guild=GSR_GUILD, description="Sync Commands to EPGenius Server")
 async def syncepgenius(interaction: discord.Interaction):
     if interaction.user.id in ADMINS:
         await interaction.client.tree.clear_commands(guild=EPGENIUS_GUILD)
