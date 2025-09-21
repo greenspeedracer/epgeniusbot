@@ -36,7 +36,7 @@ PLAYLISTS = [
     {"number": 15, "owner": "tropaz", "provider": "Trex", "epg_url": "https://github.com/ferteque/Curated-M3U-Repository/raw/refs/heads/main/epg15.xml.gz"},
     {"number": 16, "owner": "CorB3n", "provider": "Eagle", "epg_url": "https://xmltvfr.fr/xmltv/xmltv_fr.xml.gz"},
     {"number": 17, "owner": "OldJob8069", "provider": "B1G", "epg_url": "Use Provider’s EPG"},
-    {"number": 18, "owner": "Corb3n", "provider": "Trex", "epg_url": "https://xmltvfr.fr/xmltv/xmltv_fr.xml.gz"},
+    {"number": 18, "owner": "CorB3n", "provider": "Trex", "epg_url": "https://xmltvfr.fr/xmltv/xmltv_fr.xml.gz"},
     {"number": 19, "owner": "AMMAR", "provider": "Strong", "epg_url": "https://raw.githubusercontent.com/ammartaha/EPG/refs/heads/master/Guide.xml"},
     {"number": 20, "owner": "GanjaRelease", "provider": "Strong", "epg_url": "https://github.com/ferteque/Curated-M3U-Repository/raw/refs/heads/main/epg6.xml.gz"},
     {"number": 21, "owner": "NewEraSCTV", "provider": "Strong", "epg_url": "https://github.com/ferteque/Curated-M3U-Repository/raw/refs/heads/main/epg21.xml.gz"},
@@ -83,7 +83,7 @@ async def syncepgenius(interaction: discord.Interaction):
 
 class OwnerSelect(Select):
     def __init__(self, owners, playlists):
-        options = [discord.SelectOption(label=owner, description=f"Owner: {owner}") for owner in owners]
+        options = [discord.SelectOption(label=owner) for owner in owners]
         super().__init__(placeholder="Choose an owner...", min_values=1, max_values=1, options=options)
         self.playlists = playlists
 
@@ -109,7 +109,7 @@ class OwnerSelectView(View):
 @bot.tree.command(name="epg", description="Lookup EPG URL by Playlist Number or Owner. Type List to See All.")
 @app_commands.describe(query="Playlist number, owner name, or 'list'/'owner'")
 async def epglookup(interaction: discord.Interaction, query: str):
-    # If you instead want to load from API, replace PLAYLISTS here with your API fetch
+
     playlists = PLAYLISTS
 
     if query.lower() == "list":
@@ -151,7 +151,7 @@ async def epglookup(interaction: discord.Interaction, query: str):
     except ValueError:
         owners = [p["owner"] for p in playlists if p.get("owner")]
         matches = process.extract(query, owners, scorer=fuzz.WRatio)
-        filtered_matches = [m for m in matches if m[1] >= 60]
+        filtered_matches = [m for m in matches if m[1] >= 80]
 
         if not filtered_matches:
             # fallback to owner selection dropdown
