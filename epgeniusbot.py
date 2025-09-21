@@ -29,8 +29,8 @@ class MyBot(commands.Bot):
 
 bot = MyBot()
 
-@app_commands.guilds(GSR_GUILD, EPGENIUS_GUILD)
-@bot.tree.command(name="playlist", description="Convert Google Drive Playlist Share Link into Playlist Export Link")
+@bot.tree.command(name="playlist", guild=GSR_GUILD, description="Convert Google Drive Playlist Share Link into Playlist Export Link")
+@bot.tree.command(name="playlist", guild=EPGENIUS_GUILD, description="Convert Google Drive Playlist Share Link into Playlist Export Link")
 @app_commands.describe(url="Google Drive Playlist Share Link")
 async def gdrive(interaction: discord.Interaction, url: str):
     match = FILEID_PATTERN.search(url)
@@ -44,8 +44,8 @@ async def gdrive(interaction: discord.Interaction, url: str):
     download_url = f"https://drive.google.com/uc?export=download&id={file_id}&confirm=true"
     await interaction.response.send_message(f"Playlist Export Link:\n{download_url}", ephemeral=True)
 
-@app_commands.guilds(GSR_GUILD, EPGENIUS_GUILD)
-@bot.tree.command(name="syncgsr", description="Sync Commands to GSR")
+@bot.tree.command(name="syncgsr", guild=GSR_GUILD, description="Sync Commands to GSR")
+@bot.tree.command(name="syncgsr", guild=EPGENIUS_GUILD, description="Sync Commands to GSR")
 async def syncgsr(interaction: discord.Interaction):
     if interaction.user.id in ADMINS:
         await interaction.client.tree.clear_commands(guild=GSR_GUILD)
@@ -54,8 +54,8 @@ async def syncgsr(interaction: discord.Interaction):
     else:
         await interaction.response.send_message("You do not have permission to run this.", ephemeral=True)    
 
-@app_commands.guilds(GSR_GUILD, EPGENIUS_GUILD)
-@bot.tree.command(name="syncepgenius", description="Sync Commands to EPGenius Server")
+@bot.tree.command(name="syncepgenius", guild=GSR_GUILD, description="Sync Commands to EPGenius Server")
+@bot.tree.command(name="syncepgenius", guild=EPGENIUS_GUILD, description="Sync Commands to EPGenius Server")
 async def syncepgenius(interaction: discord.Interaction):
     if interaction.user.id in ADMINS:
         await interaction.client.tree.clear_commands(guild=EPGENIUS_GUILD)
@@ -63,5 +63,16 @@ async def syncepgenius(interaction: discord.Interaction):
         await interaction.response.send_message(f"Commands cleared and resynced to EPGenius guild {EPGENIUS_GUILD.id}.", ephemeral=True)
     else:
         await interaction.response.send_message("You do not have permission to run this.", ephemeral=True)
+
+@bot.event
+async def on_ready():
+    print(f'{bot.user} is online!')
+    print(f"GSR Guild: {GSR_GUILD.id}")
+    print(f"EPGenius Guild: {EPGENIUS_GUILD.id}")
+    print(f"Admins: {ADMINS}")
+    
+    for guild in ALL_GUILDS:
+        guild_commands = [cmd.name for cmd in bot.tree.get_commands(guild=guild)]
+        print(f"{guild.id}: {len(guild_commands)} commands - {guild_commands}")
 
 bot.run(TOKEN)
