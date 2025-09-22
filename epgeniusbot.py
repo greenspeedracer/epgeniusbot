@@ -5,6 +5,7 @@ from discord.ext import commands
 from discord.ui import View, Select
 import re
 import os
+import sys
 from thefuzz import fuzz, process
 from dotenv import load_dotenv
 
@@ -13,6 +14,7 @@ load_dotenv()
 TOKEN = os.getenv("EPGENIUSBOT_TOKEN")
 ADMINS = list(map(int, os.getenv("ADMIN_IDS", "").split(",")))
 ALLOWED_ROLE_IDS = list(map(int, os.getenv("ALLOWED_ROLE_IDS", "").split(",")))
+RESTRICTED_COMMANDS = [cmd.strip() for cmd in os.getenv("RESTRICTED_COMMANDS", "").split(",") if cmd.strip()]
 GSR_GUILD = discord.Object(id=int(os.getenv("GSR_GUILD_ID")))
 EPGENIUS_GUILD = discord.Object(id=int(os.getenv("EPGENIUS_GUILD_ID")))
 ALL_GUILDS = [GSR_GUILD, EPGENIUS_GUILD]
@@ -100,13 +102,20 @@ async def syncgsr(interaction: discord.Interaction):
 
 @bot.tree.command(name="syncepgenius", guild=EPGENIUS_GUILD, description="Sync Commands to the EPGenius Server")
 async def syncepgenius(interaction: discord.Interaction):
-    if interaction.user.id not in ADMINS:
-        await interaction.response.send_message("You do not have permission to run this command.", ephemeral=True)
-        return
     await interaction.response.defer(ephemeral=True)
     bot.tree.copy_global_to(guild=EPGENIUS_GUILD)
     synced = await interaction.client.tree.sync(guild=EPGENIUS_GUILD) 
     await interaction.followup.send(f"Commands synced to EPGenius guild {EPGENIUS_GUILD.id}. Synced {len(synced)} commands.", ephemeral=True)
+
+@bot.tree.command(name="killepgbot", description="Kill EPGeniusBot")
+async def killepgeniusbot(interaction: discord.Interaction):
+    await interaction.response.send_message("Killing EPGeniusBot", ephemeral=True)
+    await bot.close()
+
+@bot.tree.command(name="restartepgbot", description="Restart EPGeniusBot")
+async def restartepgbot(interaction: discord.Interaction):
+    await interaction.response.send_message("Restarting EPGeniusBot", ephemeral=True)
+    os.execv(sys.executable, ['python'] + sys.argv) 
 
 class OwnerSelect(Select):
     def __init__(self, owners, playlists):
@@ -205,13 +214,12 @@ async def epglookup(interaction: discord.Interaction, query: str):
                 )
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-
-
 @bot.event
 async def on_ready():
     await bot.tree.sync(guild=EPGENIUS_GUILD)
     await bot.tree.sync(guild=GSR_GUILD)
-    await set_command_permissions(bot, EPGENIUS_GUILD.id, "syncepgenius", ALLOWED_ROLE_IDS)
+    for cmd_name in RESTRICTED_COMMANDS:
+        await set_command_permissions(bot, EPGENIUS_GUILD.id, cmd_name, ALLOWED_ROLE_IDS)
     print(f'{bot.user} is online!')
     print(f"GSR Guild: {GSR_GUILD.id}")
     print(f"EPGenius Guild: {EPGENIUS_GUILD.id}")
