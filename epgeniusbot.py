@@ -95,7 +95,7 @@ async def syncgsr(interaction: discord.Interaction):
     if interaction.user.id not in ADMINS:
         await interaction.response.send_message("You do not have permission to run this command.", ephemeral=True)
         return
-    await bot.tree.clear_commands(guild=GSR_GUILD)    
+    bot.tree.clear_commands(guild=GSR_GUILD)    
     await interaction.response.defer(ephemeral=True)
     bot.tree.copy_global_to(guild=GSR_GUILD)
     synced = await interaction.client.tree.sync(guild=GSR_GUILD) 
@@ -103,7 +103,7 @@ async def syncgsr(interaction: discord.Interaction):
 
 @bot.tree.command(name="syncepgenius", guild=EPGENIUS_GUILD, description="Sync Commands to the EPGenius Server")
 async def syncepgenius(interaction: discord.Interaction):
-    await bot.tree.clear_commands(guild=EPGENIUS_GUILD)
+    bot.tree.clear_commands(guild=EPGENIUS_GUILD)
     await interaction.response.defer(ephemeral=True)
     bot.tree.copy_global_to(guild=EPGENIUS_GUILD)
     synced = await interaction.client.tree.sync(guild=EPGENIUS_GUILD) 
