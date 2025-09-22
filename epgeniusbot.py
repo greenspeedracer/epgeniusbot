@@ -222,6 +222,7 @@ async def on_ready():
     print(f"EPGenius Guild: {EPGENIUS_GUILD.id}")
     print(f"Admins: {ADMINS}")
     print(f"Allowed Role IDs: {ALLOWED_ROLE_IDS}")
+    print(f"Restricted Commands: {RESTRICTED_COMMANDS}")
     
     for guild in ALL_GUILDS:
         guild_commands = [cmd.name for cmd in bot.tree.get_commands(guild=guild)]
