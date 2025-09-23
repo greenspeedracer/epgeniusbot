@@ -92,9 +92,6 @@ async def gdrive(interaction: discord.Interaction, url: str):
 
 @bot.tree.command(name="syncgsr", guild=GSR_GUILD, description="Sync Commands to the GSR Server")
 async def syncgsr(interaction: discord.Interaction):
-    if interaction.user.id not in ADMINS:
-        await interaction.response.send_message("You do not have permission to run this command.", ephemeral=True)
-        return
     bot.tree.clear_commands(guild=GSR_GUILD)    
     await interaction.response.defer(ephemeral=True)
     bot.tree.copy_global_to(guild=GSR_GUILD)
@@ -105,7 +102,6 @@ async def syncgsr(interaction: discord.Interaction):
 async def syncepgenius(interaction: discord.Interaction):
     bot.tree.clear_commands(guild=EPGENIUS_GUILD)
     await interaction.response.defer(ephemeral=True)
-    bot.tree.copy_global_to(guild=EPGENIUS_GUILD)
     synced = await interaction.client.tree.sync(guild=EPGENIUS_GUILD) 
     await interaction.followup.send(f"Commands synced to EPGenius guild {EPGENIUS_GUILD.id}. Synced {len(synced)} commands.", ephemeral=True)
 
