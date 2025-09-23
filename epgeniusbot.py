@@ -92,18 +92,14 @@ async def gdrive(interaction: discord.Interaction, url: str):
 
 @bot.tree.command(name="syncgsr", guild=GSR_GUILD, description="Sync Commands to the GSR Server")
 async def syncgsr(interaction: discord.Interaction):
+    if interaction.user.id not in ADMINS:
+        await interaction.response.send_message("You do not have permission to run this command.", ephemeral=True)
+        return
     bot.tree.clear_commands(guild=GSR_GUILD)    
     await interaction.response.defer(ephemeral=True)
     bot.tree.copy_global_to(guild=GSR_GUILD)
     synced = await interaction.client.tree.sync(guild=GSR_GUILD) 
     await interaction.followup.send(f"Commands synced to GSR guild {GSR_GUILD.id}. Synced {len(synced)} commands.", ephemeral=True)
-
-@bot.tree.command(name="syncepgenius", guild=EPGENIUS_GUILD, description="Sync Commands to the EPGenius Server")
-async def syncepgenius(interaction: discord.Interaction):
-    bot.tree.clear_commands(guild=EPGENIUS_GUILD)
-    await interaction.response.defer(ephemeral=True)
-    synced = await interaction.client.tree.sync(guild=EPGENIUS_GUILD) 
-    await interaction.followup.send(f"Commands synced to EPGenius guild {EPGENIUS_GUILD.id}. Synced {len(synced)} commands.", ephemeral=True)
 
 @bot.tree.command(name="killepgbot", description="Kill EPGeniusBot")
 async def killepgeniusbot(interaction: discord.Interaction):
@@ -209,7 +205,7 @@ async def epglookup(interaction: discord.Interaction, query: str):
 
 @bot.event
 async def on_ready():
-    await bot.tree.sync(guild=EPGENIUS_GUILD)
+    await bot.tree.sync()
     await bot.tree.sync(guild=GSR_GUILD)
     for cmd_name in RESTRICTED_COMMANDS:
         await set_command_permissions(bot, EPGENIUS_GUILD.id, cmd_name, ALLOWED_ROLE_IDS)
