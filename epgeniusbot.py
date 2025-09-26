@@ -84,7 +84,7 @@ async def website_watchdog():
         await asyncio.sleep(CHECK_INTERVAL)
     
 async def set_command_permissions(bot, guild_id, command_name, allowed_role_ids):
-    guild = bot.get_guild(EPGENIUS_GUILD)
+    guild = bot.get_guild(guild_id)
     if not guild:
         print(f"Guild {guild_id} not found")
         return
@@ -237,11 +237,11 @@ async def epglookup(interaction: discord.Interaction, query: str):
 
 @bot.event
 async def on_ready():
-    bot.loop.create_task(website_watchdog())
     await bot.tree.sync()
     await bot.tree.sync(guild=GSR_GUILD)
     for cmd_name in RESTRICTED_COMMANDS:
         await set_command_permissions(bot, EPGENIUS_GUILD.id, cmd_name, ALLOWED_ROLE_IDS)
+    bot.loop.create_task(website_watchdog())
     print(f'{bot.user} is online!')
     print(f"GSR Guild: {GSR_GUILD.id}")
     print(f"EPGenius Guild: {EPGENIUS_GUILD.id}")
