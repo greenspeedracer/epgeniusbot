@@ -239,26 +239,45 @@ async def epglookup(interaction: discord.Interaction, query: str):
 
 @bot.event
 async def on_ready():
+    await bot.wait_until_ready()
     global GSR_GUILD, EPGENIUS_GUILD, ALL_GUILDS
-    GSR_GUILD = bot.get_guild(int(os.getenv("GSR_GUILD_ID")))
-    EPGENIUS_GUILD = bot.get_guild(int(os.getenv("EPGENIUS_GUILD_ID")))
+
+    for _ in range(10):
+        GSR_GUILD = bot.get_guild(int(os.getenv("GSR_GUILD_ID")))
+        EPGENIUS_GUILD = bot.get_guild(int(os.getenv("EPGENIUS_GUILD_ID")))
+        if GSR_GUILD and EPGENIUS_GUILD:
+            break
+        print("Warning: One or more guilds are not cached yet! Waiting 1 second...")
+        await asyncio.sleep(1)
+
     ALL_GUILDS = [GSR_GUILD, EPGENIUS_GUILD]
     if None in ALL_GUILDS:
-        print("Warning: One or more guilds are not cached yet!")
+        print("Warning: One or more guilds still not cached after retry. Some features may be disabled.")
+
     await bot.tree.sync()
-    await bot.tree.sync(guild=GSR_GUILD)
-    for cmd_name in RESTRICTED_COMMANDS:
-        await set_command_permissions(bot, EPGENIUS_GUILD.id, cmd_name, ALLOWED_ROLE_IDS)
+
+    if GSR_GUILD:
+        await bot.tree.sync(guild=GSR_GUILD)
+
+    if EPGENIUS_GUILD:
+        for cmd_name in RESTRICTED_COMMANDS:
+            await set_command_permissions(bot, EPGENIUS_GUILD.id, cmd_name, ALLOWED_ROLE_IDS)
+
     bot.loop.create_task(website_watchdog())
+
     print(f'{bot.user} is online!')
-    print(f"GSR Guild: {GSR_GUILD.id}")
-    print(f"EPGenius Guild: {EPGENIUS_GUILD.id}")
+    print(f"GSR Guild: {GSR_GUILD.id if GSR_GUILD else 'Not found'}")
+    print(f"EPGenius Guild: {EPGENIUS_GUILD.id if EPGENIUS_GUILD else 'Not found'}")
     print(f"Admins: {ADMINS}")
     print(f"Allowed Role IDs: {ALLOWED_ROLE_IDS}")
     print(f"Restricted Commands: {RESTRICTED_COMMANDS}")
-    
+
     for guild in ALL_GUILDS:
-        guild_commands = [cmd.name for cmd in bot.tree.get_commands(guild=guild)]
-        print(f"{guild.id}: {len(guild_commands)} commands - {guild_commands}")
+        if guild:
+            guild_commands = [cmd.name for cmd in bot.tree.get_commands(guild=guild)]
+            print(f"{guild.id}: {len(guild_commands)} commands - {guild_commands}")
+        else:
+            print("Guild is None, skipping command listing.")
+
 
 bot.run(TOKEN)
