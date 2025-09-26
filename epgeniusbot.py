@@ -6,8 +6,6 @@ from discord.ui import View, Select
 import re
 import os
 import sys
-import aiohttp
-import asyncio
 from thefuzz import fuzz, process
 from dotenv import load_dotenv
 
@@ -20,10 +18,6 @@ RESTRICTED_COMMANDS = [cmd.strip() for cmd in os.getenv("RESTRICTED_COMMANDS", "
 GSR_GUILD = discord.Object(id=int(os.getenv("GSR_GUILD_ID")))
 EPGENIUS_GUILD = discord.Object(id=int(os.getenv("EPGENIUS_GUILD_ID")))
 ALL_GUILDS = [GSR_GUILD, EPGENIUS_GUILD]
-MODCHANNEL_ID = int(os.getenv("MODCHANNEL_ID"))
-ALERT_TAGS = [cmd.strip() for cmd in os.getenv("ALERT_TAGS", "").split(",") if cmd.strip()]
-URL = "http://repo-server.site"
-CHECK_INTERVAL = 60
 
 FILEID_PATTERN = re.compile(r"/file/d/([a-zA-Z0-9_-]+)")
 
@@ -53,7 +47,6 @@ PLAYLISTS = [
 ]
 
 intents = discord.Intents.default()
-intents.guilds = True
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
@@ -83,34 +76,6 @@ async def set_command_permissions(bot, guild_id, command_name, allowed_role_ids)
     except Exception as e:
         print(f"Failed to set permissions: {e}")
 
-async def website_watchdog():
-    await bot.wait_until_ready()
-    channel = bot.get_channel(MODCHANNEL_ID)
-    alert_tags_string = " ".join(ALERT_TAGS)
-    last_status_up = True
-    if channel is None:
-        print("Watchdog channel not found!")
-        return
-
-    while not bot.is_closed():
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(URL, timeout=10) as resp:
-                    if resp.status == 200:
-                        if not last_status_up:
-                            await channel.send(f"{alert_tags_string} EPGenius is up.")
-                        last_status_up = True
-                    else:
-                        if last_status_up:
-                            await channel.send(f"{alert_tags_string} EPGenius is down. Status code: {resp.status}")
-                        last_status_up = False
-        except Exception as e:
-            if last_status_up:
-                await channel.send(f"{alert_tags_string} EPGenius is down. Error: {e}")
-            last_status_up = False
-        await asyncio.sleep(CHECK_INTERVAL)
-    
-
 @bot.tree.command(name="playlist", description="Convert Google Drive Playlist Share Link into Playlist Export Link")
 @app_commands.describe(url="Google Drive Playlist Share Link")
 async def gdrive(interaction: discord.Interaction, url: str):
@@ -125,16 +90,16 @@ async def gdrive(interaction: discord.Interaction, url: str):
     download_url = f"https://drive.google.com/uc?export=download&id={file_id}&confirm=true"
     await interaction.response.send_message(f"Playlist Export Link:\n{download_url}", ephemeral=True)
 
-#@bot.tree.command(name="syncgsr", guild=GSR_GUILD, description="Sync Commands to the GSR Server")
-#async def syncgsr(interaction: discord.Interaction):
-#    if interaction.user.id not in ADMINS:
-#        await interaction.response.send_message("You do not have permission to run this command.", ephemeral=True)
-#        return
-#    bot.tree.clear_commands(guild=GSR_GUILD)    
-#    await interaction.response.defer(ephemeral=True)
-#    bot.tree.copy_global_to(guild=GSR_GUILD)
-#    synced = await interaction.client.tree.sync(guild=GSR_GUILD) 
-#    await interaction.followup.send(f"Commands synced to GSR guild {GSR_GUILD.id}. Synced {len(synced)} commands.", ephemeral=True)
+@bot.tree.command(name="syncgsr", guild=GSR_GUILD, description="Sync Commands to the GSR Server")
+async def syncgsr(interaction: discord.Interaction):
+    if interaction.user.id not in ADMINS:
+        await interaction.response.send_message("You do not have permission to run this command.", ephemeral=True)
+        return
+    bot.tree.clear_commands(guild=GSR_GUILD)    
+    await interaction.response.defer(ephemeral=True)
+    bot.tree.copy_global_to(guild=GSR_GUILD)
+    synced = await interaction.client.tree.sync(guild=GSR_GUILD) 
+    await interaction.followup.send(f"Commands synced to GSR guild {GSR_GUILD.id}. Synced {len(synced)} commands.", ephemeral=True)
 
 @bot.tree.command(name="killepgbot", description="Kill EPGeniusBot")
 async def killepgeniusbot(interaction: discord.Interaction):
@@ -214,6 +179,7 @@ async def epglookup(interaction: discord.Interaction, query: str):
         filtered_matches = [m for m in matches if m[1] >= 80]
 
         if not filtered_matches:
+            # fallback to owner selection dropdown
             owners = sorted(set(owners))
             view = OwnerSelectView(owners, playlists)
             await interaction.response.send_message(f"No close matches found for '{query}'. Please select an owner:", view=view, ephemeral=True)
@@ -239,34 +205,19 @@ async def epglookup(interaction: discord.Interaction, query: str):
 
 @bot.event
 async def on_ready():
-    await bot.wait_until_ready()
-    for _ in range(10):
-        if GSR_GUILD and EPGENIUS_GUILD:
-            break
-        print("Warning: One or more guilds are not cached yet! Waiting 1 second...")
-        await asyncio.sleep(1)
-    if None in ALL_GUILDS:
-        print("Warning: One or more guilds still not cached after retry. Some features may be disabled.")
     await bot.tree.sync()
-    if GSR_GUILD:
-        await bot.tree.sync(guild=GSR_GUILD)
-    if EPGENIUS_GUILD:
-        for cmd_name in RESTRICTED_COMMANDS:
-            await set_command_permissions(bot, EPGENIUS_GUILD.id, cmd_name, ALLOWED_ROLE_IDS)
-    bot.loop.create_task(website_watchdog())
-
+    await bot.tree.sync(guild=GSR_GUILD)
+    for cmd_name in RESTRICTED_COMMANDS:
+        await set_command_permissions(bot, EPGENIUS_GUILD.id, cmd_name, ALLOWED_ROLE_IDS)
     print(f'{bot.user} is online!')
-    print(f"GSR Guild: {GSR_GUILD.id if GSR_GUILD else 'Not found'}")
-    print(f"EPGenius Guild: {EPGENIUS_GUILD.id if EPGENIUS_GUILD else 'Not found'}")
+    print(f"GSR Guild: {GSR_GUILD.id}")
+    print(f"EPGenius Guild: {EPGENIUS_GUILD.id}")
     print(f"Admins: {ADMINS}")
     print(f"Allowed Role IDs: {ALLOWED_ROLE_IDS}")
     print(f"Restricted Commands: {RESTRICTED_COMMANDS}")
-
+    
     for guild in ALL_GUILDS:
-        if guild:
-            guild_commands = [cmd.name for cmd in bot.tree.get_commands(guild=guild)]
-            print(f"{guild.id}: {len(guild_commands)} commands - {guild_commands}")
-        else:
-            print("Guild is None, skipping command listing.")
+        guild_commands = [cmd.name for cmd in bot.tree.get_commands(guild=guild)]
+        print(f"{guild.id}: {len(guild_commands)} commands - {guild_commands}")
 
 bot.run(TOKEN)
