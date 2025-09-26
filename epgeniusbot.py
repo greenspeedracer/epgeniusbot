@@ -50,6 +50,7 @@ PLAYLISTS = [
 ]
 
 intents = discord.Intents.default()
+intents.guild = True
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
@@ -209,7 +210,7 @@ async def epglookup(interaction: discord.Interaction, query: str):
 @bot.event
 async def on_ready():
     global GSR_GUILD_CACHE, EPGENIUS_GUILD_CACHE, ALL_GUILDS_CACHE
-    for _ in range(10):  # Retry to ensure cache is populated
+    for _ in range(10): 
         GSR_GUILD_CACHE = bot.get_guild(GSR_GUILD_ID)
         EPGENIUS_GUILD_CACHE = bot.get_guild(EPGENIUS_GUILD_ID)
         if GSR_GUILD_CACHE and EPGENIUS_GUILD_CACHE:
@@ -223,7 +224,6 @@ async def on_ready():
     if EPGENIUS_GUILD_CACHE:
         for cmd_name in RESTRICTED_COMMANDS:
             await set_command_permissions(bot, EPGENIUS_GUILD_CACHE.id, cmd_name, ALLOWED_ROLE_IDS)
-    bot.loop.create_task(website_watchdog())
     print(f'{bot.user} is online!')
     print(f"GSR Guild: {GSR_GUILD_CACHE.id}")
     print(f"EPGenius Guild: {EPGENIUS_GUILD_CACHE.id}")
