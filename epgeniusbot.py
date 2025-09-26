@@ -6,6 +6,7 @@ from discord.ui import View, Select
 import re
 import os
 import sys
+import asyncio
 from thefuzz import fuzz, process
 from dotenv import load_dotenv
 
