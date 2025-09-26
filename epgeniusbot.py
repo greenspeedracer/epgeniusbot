@@ -84,7 +84,7 @@ async def website_watchdog():
         await asyncio.sleep(CHECK_INTERVAL)
     
 async def set_command_permissions(bot, guild_id, command_name, allowed_role_ids):
-    guild = bot.get_guild(guild_id)
+    guild = bot.get_guild(EPGENIUS_GUILD)
     if not guild:
         print(f"Guild {guild_id} not found")
         return
