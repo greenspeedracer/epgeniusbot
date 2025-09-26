@@ -6,6 +6,8 @@ from discord.ui import View, Select
 import re
 import os
 import sys
+import aiohttp
+import asyncio
 from thefuzz import fuzz, process
 from dotenv import load_dotenv
 
@@ -18,6 +20,10 @@ RESTRICTED_COMMANDS = [cmd.strip() for cmd in os.getenv("RESTRICTED_COMMANDS", "
 GSR_GUILD = discord.Object(id=int(os.getenv("GSR_GUILD_ID")))
 EPGENIUS_GUILD = discord.Object(id=int(os.getenv("EPGENIUS_GUILD_ID")))
 ALL_GUILDS = [GSR_GUILD, EPGENIUS_GUILD]
+MODCHANNEL_ID = int(os.getenv("MODCHANNEL_ID"))
+ALERT_TAGS = [cmd.strip() for cmd in os.getenv("ALERT_TAGS", "").split(",") if cmd.strip()]
+URL = "http://repo-server.site"
+CHECK_INTERVAL = 60
 
 FILEID_PATTERN = re.compile(r"/file/d/([a-zA-Z0-9_-]+)")
 
@@ -50,6 +56,33 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+async def website_watchdog():
+    await bot.wait_until_ready()
+    channel = bot.get_channel(MODCHANNEL_ID)
+    alert_tags_string = " ".join(ALERT_TAGS)
+    last_status_up = True
+    if channel is None:
+        print("Watchdog channel not found!")
+        return
+
+    while not bot.is_closed():
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(URL, timeout=10) as resp:
+                    if resp.status == 200:
+                        if not last_status_up:
+                            await channel.send(f"{alert_tags_string} EPGenius is up.")
+                        last_status_up = True
+                    else:
+                        if last_status_up:
+                            await channel.send(f"{alert_tags_string} EPGenius is down. Status code: {resp.status}")
+                        last_status_up = False
+        except Exception as e:
+            if last_status_up:
+                await channel.send(f"{alert_tags_string} EPGenius is down. Error: {e}")
+            last_status_up = False
+        await asyncio.sleep(CHECK_INTERVAL)
+    
 async def set_command_permissions(bot, guild_id, command_name, allowed_role_ids):
     guild = bot.get_guild(guild_id)
     if not guild:
@@ -179,7 +212,6 @@ async def epglookup(interaction: discord.Interaction, query: str):
         filtered_matches = [m for m in matches if m[1] >= 80]
 
         if not filtered_matches:
-            # fallback to owner selection dropdown
             owners = sorted(set(owners))
             view = OwnerSelectView(owners, playlists)
             await interaction.response.send_message(f"No close matches found for '{query}'. Please select an owner:", view=view, ephemeral=True)
@@ -205,6 +237,7 @@ async def epglookup(interaction: discord.Interaction, query: str):
 
 @bot.event
 async def on_ready():
+    bot.loop.create_task(website_watchdog())
     await bot.tree.sync()
     await bot.tree.sync(guild=GSR_GUILD)
     for cmd_name in RESTRICTED_COMMANDS:
