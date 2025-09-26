@@ -209,24 +209,37 @@ async def epglookup(interaction: discord.Interaction, query: str):
 
 @bot.event
 async def on_ready():
-    global GSR_GUILD_CACHE, EPGENIUS_GUILD_CACHE, ALL_GUILDS_CACHE
-    for _ in range(10): 
-        GSR_GUILD_CACHE = bot.get_guild(GSR_GUILD_ID)
-        EPGENIUS_GUILD_CACHE = bot.get_guild(EPGENIUS_GUILD_ID)
-        if GSR_GUILD_CACHE and EPGENIUS_GUILD_CACHE:
-            break
-        await asyncio.sleep(1)
-    ALL_GUILDS_CACHE = [GSR_GUILD_CACHE, EPGENIUS_GUILD_CACHE]
-    await bot.tree.sync()
+    try:
+        GSR_GUILD_CACHE = await bot.fetch_guild(GSR_GUILD_ID)
+    except Exception as e:
+        print(f"Failed to fetch GSR guild: {e}")
+        GSR_GUILD_CACHE = None
+    try:
+        EPGENIUS_GUILD_CACHE = await bot.fetch_guild(EPGENIUS_GUILD_ID)
+    except Exception as e:
+        print(f"Failed to fetch EPGenius guild: {e}")
+        EPGENIUS_GUILD_CACHE = None
+
+    ALL_GUILDS_CACHE = [g for g in (GSR_GUILD_CACHE, EPGENIUS_GUILD_CACHE) if g]
     await bot.tree.sync()
     if GSR_GUILD_CACHE:
         await bot.tree.sync(guild=GSR_GUILD_CACHE)
     if EPGENIUS_GUILD_CACHE:
         for cmd_name in RESTRICTED_COMMANDS:
             await set_command_permissions(bot, EPGENIUS_GUILD_CACHE.id, cmd_name, ALLOWED_ROLE_IDS)
+
     print(f'{bot.user} is online!')
-    print(f"GSR Guild: {GSR_GUILD_CACHE.id}")
-    print(f"EPGenius Guild: {EPGENIUS_GUILD_CACHE.id}")
+
+    if GSR_GUILD_CACHE:
+        print(f"GSR Guild: {GSR_GUILD_CACHE.id}")
+    else:
+        print("GSR Guild not found")
+
+    if EPGENIUS_GUILD_CACHE:
+        print(f"EPGenius Guild: {EPGENIUS_GUILD_CACHE.id}")
+    else:
+        print("EPGenius Guild not found")
+
     print(f"Admins: {ADMINS}")
     print(f"Allowed Role IDs: {ALLOWED_ROLE_IDS}")
     print(f"Restricted Commands: {RESTRICTED_COMMANDS}")
@@ -234,5 +247,8 @@ async def on_ready():
     for guild in ALL_GUILDS:
         guild_commands = [cmd.name for cmd in bot.tree.get_commands(guild=guild)]
         print(f"{guild.id}: {len(guild_commands)} commands - {guild_commands}")
+
+bot.run(TOKEN)
+
 
 bot.run(TOKEN)
