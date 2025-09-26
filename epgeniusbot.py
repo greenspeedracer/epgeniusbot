@@ -56,6 +56,32 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+async def set_command_permissions(bot, guild_id, command_name, allowed_role_ids):
+    guild = bot.get_guild(guild_id)
+    if not guild:
+        print(f"Guild {guild_id} not found")
+        return
+
+    command = bot.tree.get_command(command_name)
+    if not command:
+        print(f"Command '{command_name}' not found")
+        return
+
+    permissions = [
+        app_commands.CommandPermission(
+            id=role_id,
+            type=app_commands.PermissionType.role,
+            permission=True
+        )
+        for role_id in allowed_role_ids
+    ]
+
+    try:
+        await command.edit_permissions(guild=guild, permissions=permissions)
+        print(f"Set permissions for command '{command_name}' in guild {guild_id}")
+    except Exception as e:
+        print(f"Failed to set permissions: {e}")
+
 async def website_watchdog():
     await bot.wait_until_ready()
     channel = bot.get_channel(MODCHANNEL_ID)
@@ -83,31 +109,6 @@ async def website_watchdog():
             last_status_up = False
         await asyncio.sleep(CHECK_INTERVAL)
     
-async def set_command_permissions(bot, guild_id, command_name, allowed_role_ids):
-    guild = bot.get_guild(guild_id)
-    if not guild:
-        print(f"Guild {guild_id} not found")
-        return
-
-    command = bot.tree.get_command(command_name)
-    if not command:
-        print(f"Command '{command_name}' not found")
-        return
-
-    permissions = [
-        app_commands.CommandPermission(
-            id=role_id,
-            type=app_commands.PermissionType.role,
-            permission=True
-        )
-        for role_id in allowed_role_ids
-    ]
-
-    try:
-        await command.edit_permissions(guild=guild, permissions=permissions)
-        print(f"Set permissions for command '{command_name}' in guild {guild_id}")
-    except Exception as e:
-        print(f"Failed to set permissions: {e}")
 
 @bot.tree.command(name="playlist", description="Convert Google Drive Playlist Share Link into Playlist Export Link")
 @app_commands.describe(url="Google Drive Playlist Share Link")
