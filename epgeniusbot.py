@@ -17,9 +17,9 @@ TOKEN = os.getenv("EPGENIUSBOT_TOKEN")
 ADMINS = list(map(int, os.getenv("ADMIN_IDS", "").split(",")))
 ALLOWED_ROLE_IDS = list(map(int, os.getenv("ALLOWED_ROLE_IDS", "").split(",")))
 RESTRICTED_COMMANDS = [cmd.strip() for cmd in os.getenv("RESTRICTED_COMMANDS", "").split(",") if cmd.strip()]
-GSR_GUILD = discord.Object(id=int(os.getenv("GSR_GUILD_ID")))
-EPGENIUS_GUILD = discord.Object(id=int(os.getenv("EPGENIUS_GUILD_ID")))
-ALL_GUILDS = [GSR_GUILD, EPGENIUS_GUILD]
+#GSR_GUILD = discord.Object(id=int(os.getenv("GSR_GUILD_ID")))
+#EPGENIUS_GUILD = discord.Object(id=int(os.getenv("EPGENIUS_GUILD_ID")))
+#ALL_GUILDS = [GSR_GUILD, EPGENIUS_GUILD]
 MODCHANNEL_ID = int(os.getenv("MODCHANNEL_ID"))
 ALERT_TAGS = [cmd.strip() for cmd in os.getenv("ALERT_TAGS", "").split(",") if cmd.strip()]
 URL = "http://repo-server.site"
@@ -238,6 +238,12 @@ async def epglookup(interaction: discord.Interaction, query: str):
 
 @bot.event
 async def on_ready():
+    global GSR_GUILD, EPGENIUS_GUILD, ALL_GUILDS
+    GSR_GUILD = bot.get_guild(int(os.getenv("GSR_GUILD_ID")))
+    EPGENIUS_GUILD = bot.get_guild(int(os.getenv("EPGENIUS_GUILD_ID")))
+    ALL_GUILDS = [GSR_GUILD, EPGENIUS_GUILD]
+    if None in ALL_GUILDS:
+        print("Warning: One or more guilds are not cached yet!")
     await bot.tree.sync()
     await bot.tree.sync(guild=GSR_GUILD)
     for cmd_name in RESTRICTED_COMMANDS:
