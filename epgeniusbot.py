@@ -124,16 +124,16 @@ async def gdrive(interaction: discord.Interaction, url: str):
     download_url = f"https://drive.google.com/uc?export=download&id={file_id}&confirm=true"
     await interaction.response.send_message(f"Playlist Export Link:\n{download_url}", ephemeral=True)
 
-@bot.tree.command(name="syncgsr", guild=GSR_GUILD, description="Sync Commands to the GSR Server")
-async def syncgsr(interaction: discord.Interaction):
-    if interaction.user.id not in ADMINS:
-        await interaction.response.send_message("You do not have permission to run this command.", ephemeral=True)
-        return
-    bot.tree.clear_commands(guild=GSR_GUILD)    
-    await interaction.response.defer(ephemeral=True)
-    bot.tree.copy_global_to(guild=GSR_GUILD)
-    synced = await interaction.client.tree.sync(guild=GSR_GUILD) 
-    await interaction.followup.send(f"Commands synced to GSR guild {GSR_GUILD.id}. Synced {len(synced)} commands.", ephemeral=True)
+#@bot.tree.command(name="syncgsr", guild=GSR_GUILD, description="Sync Commands to the GSR Server")
+#async def syncgsr(interaction: discord.Interaction):
+#    if interaction.user.id not in ADMINS:
+#        await interaction.response.send_message("You do not have permission to run this command.", ephemeral=True)
+#        return
+#    bot.tree.clear_commands(guild=GSR_GUILD)    
+#    await interaction.response.defer(ephemeral=True)
+#    bot.tree.copy_global_to(guild=GSR_GUILD)
+#    synced = await interaction.client.tree.sync(guild=GSR_GUILD) 
+#    await interaction.followup.send(f"Commands synced to GSR guild {GSR_GUILD.id}. Synced {len(synced)} commands.", ephemeral=True)
 
 @bot.tree.command(name="killepgbot", description="Kill EPGeniusBot")
 async def killepgeniusbot(interaction: discord.Interaction):
