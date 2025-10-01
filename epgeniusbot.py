@@ -80,9 +80,8 @@ async def syncgsr(interaction: discord.Interaction):
     synced = await interaction.client.tree.sync(guild=GSR_GUILD) 
     await interaction.followup.send(f"Commands synced to GSR guild {GSR_GUILD.id}. Synced {len(synced)} commands.", ephemeral=True)
 
-@bot.tree.command(name="killepgbot", description="Kill EPGeniusBot")
-@app_commands.checks.has_any_role(*ALLOWED_ROLE_IDS)
-async def killepgeniusbot(interaction: discord.Interaction):
+@bot.tree.command(name="killepgbot", description="Kill EPGeniusBot", guilds=ALL_GUILDS)
+async def killepgbot(interaction: discord.Interaction):
     await interaction.response.send_message("Killing EPGeniusBot", ephemeral=True)
     await bot.close()
 
@@ -194,40 +193,52 @@ async def on_app_command_error(interaction, error):
 
 @bot.event
 async def on_ready():
-    try:
-        GSR_GUILD_CACHE = await bot.fetch_guild(GSR_GUILD_ID)
-    except Exception as e:
-        print(f"Failed to fetch GSR guild: {e}")
-        GSR_GUILD_CACHE = None
-    try:
-        EPGENIUS_GUILD_CACHE = await bot.fetch_guild(EPGENIUS_GUILD_ID)
-    except Exception as e:
-        print(f"Failed to fetch EPGenius guild: {e}")
-        EPGENIUS_GUILD_CACHE = None
-
-    ALL_GUILDS_CACHE = [g for g in (GSR_GUILD_CACHE, EPGENIUS_GUILD_CACHE) if g]
-    await bot.tree.sync()
-    if GSR_GUILD_CACHE:
-        await bot.tree.sync(guild=GSR_GUILD_CACHE)
-
-    print(f'{bot.user} is online!')
-
-    if GSR_GUILD_CACHE:
-        print(f"GSR Guild: {GSR_GUILD_CACHE.id}")
-    else:
-        print("GSR Guild not found")
-
-    if EPGENIUS_GUILD_CACHE:
-        print(f"EPGenius Guild: {EPGENIUS_GUILD_CACHE.id}")
-    else:
-        print("EPGenius Guild not found")
-
+    print(f"✅ Logged in as {bot.user}")
     print(f"Admins: {ADMINS}")
     print(f"Allowed Role IDs: {ALLOWED_ROLE_IDS}")
     print(f"Restricted Commands: {RESTRICTED_COMMANDS}")
-    
-    for guild in ALL_GUILDS:
-        guild_commands = [cmd.name for cmd in bot.tree.get_commands(guild=guild)]
-        print(f"{guild.id}: {len(guild_commands)} commands - {guild_commands}")
+
+    guilds_cache = []
+    for guild_id in [GSR_GUILD_ID, EPGENIUS_GUILD_ID]:
+        try:
+            g = await bot.fetch_guild(guild_id)
+            guilds_cache.append(g)
+            print(f"Found guild: {g.name} ({g.id})")
+        except Exception as e:
+            print(f"⚠️ Failed to fetch guild {guild_id}: {e}")
+
+    for guild in guilds_cache:
+        try:
+            synced = await bot.tree.sync(guild=guild)
+            print(f"🔄 Synced {len(synced)} commands in guild {guild.name} ({guild.id})")
+
+            for cmd in synced:
+                if cmd.name in RESTRICTED_COMMANDS:
+                    perms = []
+
+                    perms.append(
+                        discord.app_commands.AppCommandPermission(
+                            id=guild.default_role.id,
+                            type=discord.AppCommandPermissionType.role,
+                            permission=False
+                        )
+                    )
+
+                    for role_id in ALLOWED_ROLE_IDS:
+                        perms.append(
+                            discord.app_commands.AppCommandPermission(
+                                id=role_id,
+                                type=discord.AppCommandPermissionType.role,
+                                permission=True
+                            )
+                        )
+
+                    await bot.tree.set_permissions(cmd, guild=guild, permissions=perms)
+                    print(f"🔒 Restricted '{cmd.name}' in {guild.name} to roles {ALLOWED_ROLE_IDS}")
+        except Exception as e:
+            print(f"⚠️ Error syncing/applying permissions in {guild.id}: {e}")
+
+    print(f"🚀 {bot.user} is online and ready!")
+
 
 bot.run(TOKEN)
