@@ -2,4 +2,4 @@
 .env.*
 __pycache__/
 *.py[cod]
-epgenisbot_old.py
+epgeniusbot_old.py
