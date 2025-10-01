@@ -55,6 +55,19 @@ intents.message_content = True
 intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+def is_allowed_role(interaction: discord.Interaction) -> bool:
+    return any(role.id in ALLOWED_ROLE_IDS for role in interaction.user.roles)
+
+@bot.tree.error
+async def on_app_command_error(interaction, error):
+    if isinstance(error, CheckFailure):
+        await interaction.response.send_message(
+            "You don't have the required role to see or run this command.",
+            ephemeral=True
+        )
+    else:
+        print(f"Unhandled error: {error}")
+
 @bot.tree.command(name="playlist", description="Convert Google Drive Playlist Share Link into Playlist Export Link")
 @app_commands.describe(url="Google Drive Playlist Share Link")
 async def gdrive(interaction: discord.Interaction, url: str):
@@ -80,7 +93,8 @@ async def syncgsr(interaction: discord.Interaction):
     synced = await interaction.client.tree.sync(guild=GSR_GUILD) 
     await interaction.followup.send(f"Commands synced to GSR guild {GSR_GUILD.id}. Synced {len(synced)} commands.", ephemeral=True)
 
-@bot.tree.command(name="killepgbot", description="Kill EPGeniusBot", guilds=ALL_GUILDS)
+@bot.tree.command(name="killepgbot", description="Kill EPGeniusBot")
+@check(is_allowed_role)
 async def killepgbot(interaction: discord.Interaction):
     await interaction.response.send_message("Killing EPGeniusBot", ephemeral=True)
     await bot.close()
@@ -181,16 +195,6 @@ async def epglookup(interaction: discord.Interaction, query: str):
                 )
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-@bot.tree.error
-async def on_app_command_error(interaction, error):
-    if isinstance(error, MissingAnyRole):
-        await interaction.response.send_message(
-            "You don't have the required role(s) to run this command.",
-            ephemeral=True
-        )
-    else:
-        print(f"Unhandled error: {error}")
-
 @bot.event
 async def on_ready():
     print(f"✅ Logged in as {bot.user}")
@@ -211,28 +215,14 @@ async def on_ready():
         try:
             synced = await bot.tree.sync(guild=guild)
             print(f"🔄 Synced {len(synced)} commands in guild {guild.name} ({guild.id})")
-
-            for cmd in synced:
-                if cmd.name in RESTRICTED_COMMANDS:
-                    perms = []
-
-                    perms.append({
-                        "id": guild.default_role.id,
-                        "type": 1,  
-                        "permission": False
-                    })
-
-                    for role_id in ALLOWED_ROLE_IDS:
-                        perms.append({
-                            "id": role_id,
-                            "type": 1, 
-                            "permission": True
-                        })
-
-                    await bot.tree.set_permissions(cmd, guild=guild, permissions=perms)
-                    print(f"🔒 Restricted '{cmd.name}' in {guild.name} to roles {ALLOWED_ROLE_IDS}")
         except Exception as e:
-            print(f"⚠️ Error syncing/applying permissions in {guild.id}: {e}")
+            print(f"⚠️ Error syncing commands in {guild.id}: {e}")
+
+    try:
+        synced_global = await bot.tree.sync()
+        print(f"🌐 Synced {len(synced_global)} global commands")
+    except Exception as e:
+        print(f"⚠️ Error syncing global commands: {e}")
 
     print(f"🚀 {bot.user} is online and ready!")
 
