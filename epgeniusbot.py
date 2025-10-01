@@ -182,6 +182,16 @@ async def epglookup(interaction: discord.Interaction, query: str):
                 )
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
+@bot.tree.error
+async def on_app_command_error(interaction, error):
+    if isinstance(error, MissingAnyRole):
+        await interaction.response.send_message(
+            "You don't have the required role(s) to run this command.",
+            ephemeral=True
+        )
+    else:
+        print(f"Unhandled error: {error}")
+
 @bot.event
 async def on_ready():
     try:
