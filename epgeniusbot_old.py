@@ -67,7 +67,7 @@ async def set_command_permissions(bot, guild_id, command_name, allowed_role_ids)
         return
 
     permissions = [
-        app_commands.AppCommandPermission(
+        app_commands.CommandPermission(
             id=role_id,
             type=app_commands.PermissionType.role,
             permission=True
@@ -184,6 +184,7 @@ async def epglookup(interaction: discord.Interaction, query: str):
         filtered_matches = [m for m in matches if m[1] >= 80]
 
         if not filtered_matches:
+            # fallback to owner selection dropdown
             owners = sorted(set(owners))
             view = OwnerSelectView(owners, playlists)
             await interaction.response.send_message(f"No close matches found for '{query}'. Please select an owner:", view=view, ephemeral=True)
