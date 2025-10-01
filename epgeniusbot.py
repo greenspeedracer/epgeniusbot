@@ -216,22 +216,18 @@ async def on_ready():
                 if cmd.name in RESTRICTED_COMMANDS:
                     perms = []
 
-                    perms.append(
-                        app_commands.Permission(
-                            id=guild.default_role.id,
-                            type=app_commands.PermissionType.role,
-                            permission=False
-                        )
-                    )
+                    perms.append({
+                        "id": guild.default_role.id,
+                        "type": 1,  
+                        "permission": False
+                    })
 
                     for role_id in ALLOWED_ROLE_IDS:
-                        perms.append(
-                            app_commands.Permission(
-                                id=role_id,
-                                type=app_commands.PermissionType.role,
-                                permission=True
-                            )
-                        )
+                        perms.append({
+                            "id": role_id,
+                            "type": 1, 
+                            "permission": True
+                        })
 
                     await bot.tree.set_permissions(cmd, guild=guild, permissions=perms)
                     print(f"🔒 Restricted '{cmd.name}' in {guild.name} to roles {ALLOWED_ROLE_IDS}")
