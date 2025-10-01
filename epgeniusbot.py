@@ -69,7 +69,7 @@ async def set_command_permissions(bot, guild_id, command_name, allowed_role_ids)
     permissions = [
         app_commands.AppCommandPermissions(
             id=role_id,
-            type=app_commands.PermissionType.role,
+            type=1,
             permission=True
         )
         for role_id in allowed_role_ids
