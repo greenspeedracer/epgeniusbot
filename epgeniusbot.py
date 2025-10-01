@@ -66,14 +66,16 @@ async def set_command_permissions(bot, guild_id, command_name, allowed_role_ids)
         print(f"Command '{command_name}' not found")
         return
 
-    permissions = [
-        app_commands.AppCommandPermissions(
+    permission_list = [
+        app_commands.AppCommandPermission(
             id=role_id,
             type=1,
             permission=True
         )
         for role_id in allowed_role_ids
     ]
+
+    permissions = app_commands.AppCommandPermissions(permissions=permission_list)
 
     try:
         await command.edit_permissions(guild=guild, permissions=permissions)
