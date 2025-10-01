@@ -217,18 +217,18 @@ async def on_ready():
                     perms = []
 
                     perms.append(
-                        discord.app_commands.AppCommandPermission(
+                        app_commands.Permission(
                             id=guild.default_role.id,
-                            type=discord.AppCommandPermissionType.role,
+                            type=app_commands.PermissionType.role,
                             permission=False
                         )
                     )
 
                     for role_id in ALLOWED_ROLE_IDS:
                         perms.append(
-                            discord.app_commands.AppCommandPermission(
+                            app_commands.Permission(
                                 id=role_id,
-                                type=discord.AppCommandPermissionType.role,
+                                type=app_commands.PermissionType.role,
                                 permission=True
                             )
                         )
@@ -239,6 +239,5 @@ async def on_ready():
             print(f"⚠️ Error syncing/applying permissions in {guild.id}: {e}")
 
     print(f"🚀 {bot.user} is online and ready!")
-
 
 bot.run(TOKEN)
