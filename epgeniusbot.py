@@ -55,34 +55,6 @@ intents.message_content = True
 intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-async def set_command_permissions(bot, guild_id, command_name, allowed_role_ids):
-    guild = bot.get_guild(guild_id)
-    if not guild:
-        print(f"Guild {guild_id} not found")
-        return
-
-    command = bot.tree.get_command(command_name)
-    if not command:
-        print(f"Command '{command_name}' not found")
-        return
-
-    permission_list = [
-        app_commands.AppCommandPermission(
-            id=role_id,
-            type=1,
-            permission=True
-        )
-        for role_id in allowed_role_ids
-    ]
-
-    permissions = app_commands.AppCommandPermissions(permissions=permission_list)
-
-    try:
-        await command.edit_permissions(guild=guild, permissions=permissions)
-        print(f"Set permissions for command '{command_name}' in guild {guild_id}")
-    except Exception as e:
-        print(f"Failed to set permissions: {e}")
-
 @bot.tree.command(name="playlist", description="Convert Google Drive Playlist Share Link into Playlist Export Link")
 @app_commands.describe(url="Google Drive Playlist Share Link")
 async def gdrive(interaction: discord.Interaction, url: str):
@@ -109,6 +81,7 @@ async def syncgsr(interaction: discord.Interaction):
     await interaction.followup.send(f"Commands synced to GSR guild {GSR_GUILD.id}. Synced {len(synced)} commands.", ephemeral=True)
 
 @bot.tree.command(name="killepgbot", description="Kill EPGeniusBot")
+@app_commands.checks.has_any_role(*ALLOWED_ROLE_IDS)
 async def killepgeniusbot(interaction: discord.Interaction):
     await interaction.response.send_message("Killing EPGeniusBot", ephemeral=True)
     await bot.close()
@@ -226,9 +199,6 @@ async def on_ready():
     await bot.tree.sync()
     if GSR_GUILD_CACHE:
         await bot.tree.sync(guild=GSR_GUILD_CACHE)
-    if EPGENIUS_GUILD_CACHE:
-        for cmd_name in RESTRICTED_COMMANDS:
-            await set_command_permissions(bot, EPGENIUS_GUILD_CACHE.id, cmd_name, ALLOWED_ROLE_IDS)
 
     print(f'{bot.user} is online!')
 
