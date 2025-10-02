@@ -1,7 +1,7 @@
 
 import discord
 from discord import app_commands
-from discord.app_commands import check, CheckFailure
+from discord.app_commands import check, CheckFailure, CommandTree, AppCommandPermission, AppCommandPermissionType
 from discord.ext import commands
 from discord.ui import View, Select
 import re
@@ -56,8 +56,20 @@ intents.message_content = True
 intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-def is_allowed_role(interaction: discord.Interaction) -> bool:
-    return any(role.id in ALLOWED_ROLE_IDS for role in interaction.user.roles)
+async def restrict_command(cmd, guild):
+    perms = [AppCommandPermission(
+        id=guild.default_role.id,
+        type=AppCommandPermissionType.role,
+        permission=False
+    )]
+
+    for role_id in ALLOWED_ROLE_IDS:
+        perms.append(AppCommandPermission(
+            id=role_id,
+            type=AppCommandPermissionType.role,
+            permission=True
+        ))
+    await bot.tree.set_permissions(cmd, guild=guild, permissions=perms)
 
 @bot.tree.error
 async def on_app_command_error(interaction, error):
@@ -95,7 +107,6 @@ async def syncgsr(interaction: discord.Interaction):
     await interaction.followup.send(f"Commands synced to GSR guild {GSR_GUILD.id}. Synced {len(synced)} commands.", ephemeral=True)
 
 @bot.tree.command(name="killepgbot", description="Kill EPGeniusBot")
-@check(is_allowed_role)
 async def killepgbot(interaction: discord.Interaction):
     await interaction.response.send_message("Killing EPGeniusBot", ephemeral=True)
     await bot.close()
@@ -204,6 +215,7 @@ async def on_ready():
     print(f"Restricted Commands: {RESTRICTED_COMMANDS}")
 
     guilds_cache = []
+
     for guild_id in [GSR_GUILD_ID, EPGENIUS_GUILD_ID]:
         try:
             g = await bot.fetch_guild(guild_id)
@@ -216,8 +228,29 @@ async def on_ready():
         try:
             synced = await bot.tree.sync(guild=guild)
             print(f"🔄 Synced {len(synced)} commands in guild {guild.name} ({guild.id})")
+
+            for cmd in synced:
+                if cmd.name in RESTRICTED_COMMANDS:
+                    perms = [
+                        AppCommandPermission(
+                            id=guild.default_role.id,
+                            type=AppCommandPermissionType.role,
+                            permission=False
+                        )
+                    ]
+                    for role_id in ALLOWED_ROLE_IDS:
+                        perms.append(
+                            AppCommandPermission(
+                                id=role_id,
+                                type=AppCommandPermissionType.role,
+                                permission=True
+                            )
+                        )
+                    await bot.tree.set_permissions(cmd, guild=guild, permissions=perms)
+                    print(f"🔒 Restricted '{cmd.name}' in {guild.name} to roles {ALLOWED_ROLE_IDS}")
+
         except Exception as e:
-            print(f"⚠️ Error syncing commands in {guild.id}: {e}")
+            print(f"⚠️ Error syncing/applying permissions in {guild.id}: {e}")
 
     try:
         synced_global = await bot.tree.sync()
@@ -226,5 +259,6 @@ async def on_ready():
         print(f"⚠️ Error syncing global commands: {e}")
 
     print(f"🚀 {bot.user} is online and ready!")
+
 
 bot.run(TOKEN)
