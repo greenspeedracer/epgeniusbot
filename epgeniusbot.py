@@ -3,6 +3,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 from discord.ui import View, Select
+from discord.app_commands import MissingAnyRole
 import re
 import os
 import sys
