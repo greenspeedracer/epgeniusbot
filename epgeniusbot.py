@@ -9,6 +9,8 @@ import os
 import sys
 import asyncio
 import aiohttp
+import json
+from datetime import datetime
 from thefuzz import fuzz, process
 from dotenv import load_dotenv
 
@@ -27,33 +29,11 @@ MOD_MENTIONS = " ".join([f"<@&{role_id}>" for role_id in MOD_ROLE_IDS])
 REPO_URL = "http://repo-server.site"
 CHECK_INTERVAL = 60
 TIMEOUT = 10
+CACHED_PLAYLISTS = None
+PLAYLIST_CACHE_FILE = "playlists_cache.json"
+PLAYLIST_URL = "http://repo-server.site/playlists"
 
 FILEID_PATTERN = re.compile(r"/file/d/([a-zA-Z0-9_-]+)")
-
-PLAYLISTS = [
-    {"number": 1, "owner": "ferteque", "provider": "Strong", "epg_url": "https://github.com/ferteque/Curated-M3U-Repository/raw/refs/heads/main/epg1.xml.gz"},
-    {"number": 2, "owner": "jams", "provider": "Strong", "epg_url": "https://github.com/ferteque/Curated-M3U-Repository/raw/refs/heads/main/epg2.xml.gz"},
-    {"number": 3, "owner": None, "provider": "France OTT", "epg_url": None},
-    {"number": 4, "owner": "edsanchez", "provider": "Eagle", "epg_url": "https://github.com/ferteque/Curated-M3U-Repository/raw/refs/heads/main/epg4.xml.gz"},
-    {"number": 5, "owner": None, "provider": "Mega", "epg_url": "https://github.com/ferteque/Curated-M3U-Repository/raw/refs/heads/main/epg5.xml.gz"},
-    {"number": 6, "owner": "GanjaRelease", "provider": "Strong", "epg_url": "https://github.com/ferteque/Curated-M3U-Repository/raw/refs/heads/main/epg6.xml.gz"},
-    {"number": 7, "owner": "SouthwestBudz", "provider": "Trex", "epg_url": "https://github.com/ferteque/Curated-M3U-Repository/raw/refs/heads/main/epg7.xml.gz"},
-    {"number": 8, "owner": "GanjaRelease", "provider": "Lion", "epg_url": "https://github.com/ferteque/Curated-M3U-Repository/raw/refs/heads/main/epg8.xml.gz"},
-    {"number": 9, "owner": "GanjaRelease", "provider": "Trex", "epg_url": "https://github.com/ferteque/Curated-M3U-Repository/raw/refs/heads/main/epg9.xml.gz"},
-    {"number": 10, "owner": None, "provider": "Strong", "epg_url": "https://epg.722222227.xyz/epg/0/0_nodummy.xml.gz"},
-    {"number": 11, "owner": "smauggmg", "provider": "Strong", "epg_url": "https://github.com/ferteque/Curated-M3U-Repository/raw/refs/heads/main/epg11.xml.gz"},
-    {"number": 12, "owner": "thedoobles", "provider": "Strong", "epg_url": "https://github.com/ferteque/Curated-M3U-Repository/raw/refs/heads/main/epg12.xml.gz"},
-    {"number": 13, "owner": "ferteque", "provider": "Strong", "epg_url": "https://github.com/ferteque/Curated-M3U-Repository/raw/refs/heads/main/epg13.xml.gz"},
-    {"number": 14, "owner": "tropaz", "provider": "Strong", "epg_url": "https://github.com/ferteque/Curated-M3U-Repository/raw/refs/heads/main/epg14.xml.gz"},
-    {"number": 15, "owner": "tropaz", "provider": "Trex", "epg_url": "https://github.com/ferteque/Curated-M3U-Repository/raw/refs/heads/main/epg15.xml.gz"},
-    {"number": 16, "owner": "CorB3n", "provider": "Eagle", "epg_url": "https://xmltvfr.fr/xmltv/xmltv_fr.xml.gz"},
-    {"number": 17, "owner": "OldJob8069", "provider": "B1G", "epg_url": "Use Provider’s EPG"},
-    {"number": 18, "owner": "CorB3n", "provider": "Trex", "epg_url": "https://xmltvfr.fr/xmltv/xmltv_fr.xml.gz"},
-    {"number": 19, "owner": "AMMAR", "provider": "Strong", "epg_url": "https://raw.githubusercontent.com/ammartaha/EPG/refs/heads/master/Guide.xml"},
-    {"number": 20, "owner": "GanjaRelease", "provider": "Strong", "epg_url": "https://github.com/ferteque/Curated-M3U-Repository/raw/refs/heads/main/epg6.xml.gz"},
-    {"number": 21, "owner": "NewEraSCTV", "provider": "Strong", "epg_url": "https://github.com/ferteque/Curated-M3U-Repository/raw/refs/heads/main/epg21.xml.gz"},
-    {"number": 23, "owner": "JayNowa", "provider": "Trex", "epg_url": "https://github.com/ferteque/Curated-M3U-Repository/raw/refs/heads/main/epg23.xml.gz"},
-]
 
 intents = discord.Intents.default()
 intents.guilds = True
@@ -138,6 +118,88 @@ async def send_repo_recovery_alert():
     
     await MODCHANNEL.send(content=MOD_MENTIONS, embed=embed)
 
+async def fetch_playlists():
+    try:
+        timeout_config = aiohttp.ClientTimeout(total=10)
+        async with aiohttp.ClientSession(timeout=timeout_config) as session:
+            async with session.get(PLAYLIST_URL) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    playlists = []
+                    for item in data:
+                        playlists.append({
+                            "number": item["id"],
+                            "owner": item["reddit_user"] if item["reddit_user"] != "N/A" else None,
+                            "provider": item["service_name"],
+                            "epg_url": item["github_epg_url"]
+                        })
+                    return playlists
+                else:
+                    print(f"Failed to fetch playlists: HTTP {response.status}")
+                    return None
+    except Exception as e:
+        print(f"Error fetching playlists: {e}")
+        return None
+
+def save_playlist_cache(playlists):
+    try:
+        cache_data = {
+            "timestamp": datetime.now().isoformat(),
+            "playlists": playlists
+        }
+        with open(PLAYLIST_CACHE_FILE, 'w') as f:
+            json.dump(cache_data, f)
+        print(f"Playlist cache saved at {cache_data['timestamp']}")
+    except Exception as e:
+        print(f"Error saving playlist cache: {e}")
+
+def load_playlist_cache():
+    try:
+        if not os.path.exists(PLAYLIST_CACHE_FILE):
+            print("No cache file found")
+            return None
+        
+        with open(PLAYLIST_CACHE_FILE, 'r') as f:
+            cache_data = json.load(f)
+        
+        cache_time = datetime.fromisoformat(cache_data['timestamp'])
+        age = datetime.now() - cache_time
+        
+        print(f"Loading playlist cache from {cache_data['timestamp']} (age: {age})")
+        return cache_data['playlists']
+    except Exception as e:
+        print(f"Error loading playlist cache: {e}")
+        return None
+
+async def get_playlists():
+    global CACHED_PLAYLISTS
+    
+    print("Attempting to fetch live playlist data...")
+    live_playlists = await fetch_playlists()
+    
+    if live_playlists:
+        print(f"Successfully fetched {len(live_playlists)} playlists from server")
+        CACHED_PLAYLISTS = live_playlists
+        save_playlist_cache(live_playlists)
+        return live_playlists
+    
+    print("Live fetch failed, attempting to load cache...")
+    
+    if CACHED_PLAYLISTS:
+        print(f"Using in-memory cached playlists ({len(CACHED_PLAYLISTS)} playlists)")
+        return CACHED_PLAYLISTS
+    
+    cached_playlists = load_playlist_cache()
+    
+    if cached_playlists:
+        print(f"Using file cached playlists ({len(cached_playlists)} playlists)")
+        CACHED_PLAYLISTS = cached_playlists
+        return cached_playlists
+    
+    print("ERROR: No playlist data available (live fetch failed and no cache exists)")
+    return None
+
+
 # For sending alerts
 # await MODCHANNEL.send(f"{MOD_MENTIONS} Something needs attention!")
 
@@ -204,7 +266,16 @@ class OwnerSelectView(View):
 @app_commands.describe(query="Playlist number, owner name, `list`, or `owner`.")
 async def epglookup(interaction: discord.Interaction, query: str):
 
-    playlists = PLAYLISTS
+    await interaction.response.defer(ephemeral=True)
+
+    playlists = await get_playlists()
+    
+    if playlists is None:
+        await interaction.followup.send(
+            "Unable to fetch playlist data. The server is down and no cache is available. Please try again later.",
+            ephemeral=True
+        )
+        return
 
     if query.lower() == "list":
         embed = discord.Embed(title="All Playlists", color=discord.Color.blue())
@@ -216,23 +287,23 @@ async def epglookup(interaction: discord.Interaction, query: str):
                 value=f"Provider: {p['provider']}\nEPG: {epg_display}",
                 inline=False
             )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.followup.send(embed=embed, ephemeral=True)
         return
 
     if query.lower() == "owner":
         owners = sorted({p['owner'] for p in playlists if p.get("owner")})
         if not owners:
-            await interaction.response.send_message("No owners found.", ephemeral=True)
+            await interaction.followup.send("No owners found.", ephemeral=True)
             return
         view = OwnerSelectView(owners, playlists)
-        await interaction.response.send_message("Select an owner:", view=view, ephemeral=True)
+        await interaction.followup.send("Select an owner:", view=view, ephemeral=True)
         return
 
     try:
         number_query = int(query)
         playlist = next((p for p in playlists if p["number"] == number_query), None)
         if not playlist:
-            await interaction.response.send_message(f"No playlist found for #{number_query}.", ephemeral=True)
+            await interaction.followup.send(f"No playlist found for #{number_query}.", ephemeral=True)
             return
 
         embed = discord.Embed(title=f"Playlist #{playlist['number']} EPG Info", color=discord.Color.blue())
@@ -240,7 +311,7 @@ async def epglookup(interaction: discord.Interaction, query: str):
         embed.add_field(name="Provider", value=playlist['provider'], inline=True)
         epg_url = playlist['epg_url'] or "No EPG URL available"
         embed.add_field(name="EPG URL", value=epg_url, inline=False)
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.followup.send(embed=embed, ephemeral=True)
         return
     except ValueError:
         owners = [p["owner"] for p in playlists if p.get("owner")]
@@ -250,7 +321,7 @@ async def epglookup(interaction: discord.Interaction, query: str):
         if not filtered_matches:
             owners = sorted(set(owners))
             view = OwnerSelectView(owners, playlists)
-            await interaction.response.send_message(f"No close matches found for '{query}'. Please select an owner:", view=view, ephemeral=True)
+            await interaction.followup.send(f"No close matches found for '{query}'. Please select an owner:", view=view, ephemeral=True)
             return
 
         embed = discord.Embed(title=f"Playlists matching '{query}'", color=discord.Color.blue())
@@ -269,7 +340,7 @@ async def epglookup(interaction: discord.Interaction, query: str):
                     value=f"Provider: {p['provider']}\nEPG: {epg_display}",
                     inline=False
                 )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
 @bot.event
 async def on_ready():
