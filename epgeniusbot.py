@@ -278,16 +278,37 @@ async def epglookup(interaction: discord.Interaction, query: str):
         return
 
     if query.lower() == "list":
-        embed = discord.Embed(title="All Playlists", color=discord.Color.blue())
+        embeds = []
+        current_embed = discord.Embed(title="All Playlists (Page 1)", color=discord.Color.blue())
+        field_count = 0
+        page_num = 1
+        
         for p in playlists:
-            epg_display = p['epg_url'] if p['epg_url'] and p['epg_url'].lower() not in ["n/a", "use provider’s epg"] else "No EPG URL"
+            epg_display = p['epg_url'] if p['epg_url'] and p['epg_url'].lower() not in ["n/a", "use provider's epg"] else "No EPG URL"
             owner_display = p['owner'] or "N/A"
-            embed.add_field(
+            
+            if field_count >= 25:
+                embeds.append(current_embed)
+                page_num += 1
+                current_embed = discord.Embed(title=f"All Playlists (Page {page_num})", color=discord.Color.blue())
+                field_count = 0
+            
+            current_embed.add_field(
                 name=f"#{p['number']} - {owner_display}",
                 value=f"Provider: {p['provider']}\nEPG: {epg_display}",
                 inline=False
             )
-        await interaction.followup.send(embed=embed, ephemeral=True)
+            field_count += 1
+        
+        if field_count > 0:
+            embeds.append(current_embed)
+        
+        if len(embeds) == 1:
+            await interaction.followup.send(embed=embeds[0], ephemeral=True)
+        else:
+            await interaction.followup.send(embed=embeds[0], ephemeral=True)
+            for embed in embeds[1:]:
+                await interaction.followup.send(embed=embed, ephemeral=True)
         return
 
     if query.lower() == "owner":
