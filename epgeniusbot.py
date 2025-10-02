@@ -24,7 +24,7 @@ ALL_GUILDS = [GSR_GUILD, EPGENIUS_GUILD]
 MODCHANNEL_ID = int(os.getenv("MODCHANNEL_ID"))
 MODCHANNEL = None
 MOD_MENTIONS = " ".join([f"<@&{role_id}>" for role_id in MOD_ROLE_IDS])
-REPO_URL = "http://repo-server.site"
+REPO_URL = "http://httpbin.org/status/500"
 CHECK_INTERVAL = 60
 TIMEOUT = 10
 
@@ -137,7 +137,6 @@ async def send_repo_recovery_alert():
     embed.add_field(name="Status", value="200 OK", inline=False)
     
     await MODCHANNEL.send(content=MOD_MENTIONS, embed=embed)
-
 
 # For sending alerts
 # await MODCHANNEL.send(f"{MOD_MENTIONS} Something needs attention!")
