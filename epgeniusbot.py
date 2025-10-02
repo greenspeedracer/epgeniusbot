@@ -81,7 +81,8 @@ async def syncgsr(interaction: discord.Interaction):
     synced = await interaction.client.tree.sync(guild=GSR_GUILD) 
     await interaction.followup.send(f"Commands synced to GSR guild {GSR_GUILD.id}. Synced {len(synced)} commands.", ephemeral=True)
 
-@bot.tree.command(name="killepgbot", description="Kill EPGeniusBot", guilds=ALL_GUILDS)
+@bot.tree.command(name="killepgbot", description="Kill EPGeniusBot")
+@app_commands.default_permissions(manage_messages=True) 
 @app_commands.checks.has_any_role(*ALLOWED_ROLE_IDS)
 async def killepgbot(interaction: discord.Interaction):
     await interaction.response.send_message("Killing EPGeniusBot", ephemeral=True)
@@ -208,41 +209,16 @@ async def on_ready():
     print(f"{bot.user} is online!")
     print(f"Admins: {ADMINS}")
     print(f"Allowed Role IDs: {ALLOWED_ROLE_IDS}")
-    print(f"Restricted Commands: {RESTRICTED_COMMANDS}")
-
-    guild_cache = {}
-    for name, gid in [("GSR", GSR_GUILD_ID), ("EPGenius", EPGENIUS_GUILD_ID)]:
-        try:
-            guild_cache[name] = await bot.fetch_guild(gid)
-        except Exception as e:
-            print(f"Failed to fetch {name} guild: {e}")
-
-    all_guilds_cache = [g for g in guild_cache.values() if g]
-
-    for guild in all_guilds_cache:
-        try:
-            permissions = [
-                discord.app_commands.CommandPermissions(
-                    id=role_id, 
-                    type=discord.app_commands.CommandPermissionType.role, 
-                    permission=True
-                ) for role_id in ALLOWED_ROLE_IDS
-            ]
-            await bot.tree.get_command('killepgbot').edit_permissions(
-                guild=guild,
-                permissions=permissions
-            )
-            print(f"Set permissions for killepgbot in guild {guild.id}")
-        except Exception as e:
-            print(f"Failed to set permissions for killepgbot in guild {guild.id}: {e}")
 
     synced_global = await bot.tree.sync()
     print(f"Synced {len(synced_global)} global commands: {[cmd.name for cmd in synced_global]}")
 
-    for guild in all_guilds_cache:
-        synced = await bot.tree.sync(guild=guild)
-        cmds = [cmd.name for cmd in bot.tree.get_commands(guild=guild)]
-        print(f"Synced {len(synced)} commands to guild {guild.id}: {cmds}")
+    for guild_obj in ALL_GUILDS:
+        try:
+            synced = await bot.tree.sync(guild=guild_obj)
+            print(f"Synced {len(synced)} commands to guild {guild_obj.id}")
+        except Exception as e:
+            print(f"Failed to sync to guild {guild_obj.id}: {e}")
 
     print(f"{bot.user} is fully ready!")
 
