@@ -85,14 +85,12 @@ async def killepgbot_callback(interaction: discord.Interaction):
     await interaction.response.send_message("Killing EPGeniusBot", ephemeral=True)
     await bot.close()
 def register_killepgbot(guild):
-    @bot.tree.command(name="killepgbot", description="Kill EPGeniusBot", guild=guild, default_member_permissions=0)
-    @app_commands.checks.has_any_role(*ALLOWED_ROLE_IDS)
-    async def killepgbot(interaction: discord.Interaction):
-        await killepgbot_callback(interaction)
+    killepgbot = app_commands.Command(name="killepgbot", description="Kill EPGeniusBot", callback=killepgbot_callback, default_permissions=None)
+    killepgbot.checks.append(app_commands.checks.has_any_role(*ALLOWED_ROLE_IDS))
+    bot.tree.add_command(killepgbot, guild=guild)
 for guild in ALL_GUILDS:
     register_killepgbot(guild)
     print(f"Registered killepgbot for guild {guild.id}")
-
 
 @bot.tree.error
 async def on_app_command_error(interaction, error):
