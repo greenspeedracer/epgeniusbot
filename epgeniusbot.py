@@ -1,13 +1,14 @@
 
 import discord
 from discord import app_commands, Permissions
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord.ui import View, Select
 from discord.app_commands import MissingAnyRole
 import re
 import os
 import sys
 import asyncio
+import aiohttp
 from thefuzz import fuzz, process
 from dotenv import load_dotenv
 
@@ -23,6 +24,9 @@ ALL_GUILDS = [GSR_GUILD, EPGENIUS_GUILD]
 MODCHANNEL_ID = int(os.getenv("MODCHANNEL_ID"))
 MODCHANNEL = None
 MOD_MENTIONS = " ".join([f"<@&{role_id}>" for role_id in MOD_ROLE_IDS])
+REPO_URL = "http://repo-server.site"
+CHECK_INTERVAL = 60
+TIMEOUT = 10
 
 FILEID_PATTERN = re.compile(r"/file/d/([a-zA-Z0-9_-]+)")
 
@@ -56,6 +60,83 @@ intents.guilds = True
 intents.message_content = True
 intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
+
+bot.last_repo_status = None
+
+@tasks.loop(seconds=CHECK_INTERVAL)
+async def check_repo_status():
+    status_code, error_type, error_msg = await check_site_status(REPO_URL, TIMEOUT)
+    current_status = f"{status_code}:{error_type}"
+    
+    if current_status != bot.last_repo_status:
+        if status_code != 200:
+            await send_repo_alert(status_code, error_type, error_msg)
+        elif bot.last_repo_status is not None:
+            await send_repo_recovery_alert()
+        bot.last_repo_status = current_status
+
+@check_repo_status.before_loop
+async def before_check_repo_status():
+    await bot.wait_until_ready()
+
+async def check_site_status(url, timeout):
+    try:
+        timeout_config = aiohttp.ClientTimeout(total=timeout)
+        async with aiohttp.ClientSession(timeout=timeout_config) as session:
+            async with session.get(url) as response:
+                status = response.status
+                if status == 200:
+                    return (200, "OK", "")
+                else:
+                    return (status, f"HTTP_{status}", f"HTTP {status}")
+    except asyncio.TimeoutError:
+        return (0, "TIMEOUT", f"Request timed out after {timeout} seconds")
+    except aiohttp.ClientConnectorError as e:
+        return (0, "CONNECTION_ERROR", f"Connection failed: {str(e)}")
+    except aiohttp.ClientSSLError as e:
+        return (0, "SSL_ERROR", f"SSL/TLS error: {str(e)}")
+    except aiohttp.InvalidURL as e:
+        return (0, "INVALID_URL", f"Invalid URL: {str(e)}")
+    except aiohttp.ClientError as e:
+        return (0, "CLIENT_ERROR", f"Client error: {str(e)}")
+    except Exception as e:
+        return (0, "UNKNOWN_ERROR", f"Unexpected error: {type(e).__name__} - {str(e)}")
+
+async def send_repo_alert(status_code, error_type, error_msg):
+    if MODCHANNEL is None:
+        print(f"MODCHANNEL not initialized")
+        return
+    
+    if status_code == 0:
+        status_display = "N/A (Connection Failed)"
+    else:
+        status_display = str(status_code)
+    
+    embed = discord.Embed(
+        title="🚨 EPGenius Server Down Alert",
+        description=f"{MOD_MENTIONS}",
+        color=discord.Color.red()
+    )
+    embed.add_field(name="URL", value=REPO_URL, inline=False)
+    embed.add_field(name="Status Code", value=status_display, inline=True)
+    embed.add_field(name="Error Type", value=error_type, inline=True)
+    if error_msg:
+        embed.add_field(name="Error Details", value=error_msg, inline=False)
+    
+    await MODCHANNEL.send(content=MOD_MENTIONS, embed=embed)
+
+async def send_repo_recovery_alert():
+    if MODCHANNEL is None:
+        return
+    
+    embed = discord.Embed(
+        title="✅ EPGenius Server Recovered",
+        description=f"EPGenius server {REPO_URL} is back online",
+        color=discord.Color.green()
+    )
+    embed.add_field(name="Status", value="200 OK", inline=False)
+    
+    await MODCHANNEL.send(content=MOD_MENTIONS, embed=embed)
 
 
 # For sending alerts
@@ -191,16 +272,6 @@ async def epglookup(interaction: discord.Interaction, query: str):
                 )
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-@bot.tree.error
-async def on_app_command_error(interaction, error):
-    if isinstance(error, MissingAnyRole):
-        await interaction.response.send_message(
-            "You don't have the required role(s) to run this command.",
-            ephemeral=True
-        )
-    else:
-        print(f"Unhandled error: {error}")
-
 @bot.event
 async def on_ready():
     print(f"{bot.user} is online!")
@@ -214,6 +285,10 @@ async def on_ready():
         print(f"Mod channel found: {MODCHANNEL.name}")
     else:
         print(f"Warning: Could not find mod channel with ID {MODCHANNEL_ID}")
+    
+    if not check_repo_status.is_running():
+        check_repo_status.start()
+        print(f"EPGenius server status monitoring started for {REPO_URL}")
 
     synced_global = await bot.tree.sync()
     print(f"Synced {len(synced_global)} global commands: {[cmd.name for cmd in synced_global]}")
