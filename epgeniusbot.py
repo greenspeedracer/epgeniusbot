@@ -90,6 +90,16 @@ for guild in ALL_GUILDS:
     register_killepgbot(guild)
     print(f"Registered killepgbot for guild {guild.id}")
 
+@bot.tree.error
+async def on_app_command_error(interaction, error):
+    if isinstance(error, MissingAnyRole):
+        await interaction.response.send_message(
+            "You don't have the required role(s) to run this command.",
+            ephemeral=True
+        )
+    else:
+        print(f"Unhandled error: {error}")
+
 class OwnerSelect(Select):
     def __init__(self, owners, playlists):
         options = [discord.SelectOption(label=owner) for owner in owners]
