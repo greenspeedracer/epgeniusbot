@@ -14,14 +14,15 @@ from dotenv import load_dotenv
 load_dotenv()
 
 TOKEN = os.getenv("EPGENIUSBOT_TOKEN")
-ADMINS = list(map(int, os.getenv("ADMIN_IDS", "").split(",")))
 ALLOWED_ROLE_IDS = list(map(int, os.getenv("ALLOWED_ROLE_IDS", "").split(",")))
-RESTRICTED_COMMANDS = [cmd.strip() for cmd in os.getenv("RESTRICTED_COMMANDS", "").split(",") if cmd.strip()]
 GSR_GUILD_ID = int(os.getenv("GSR_GUILD_ID"))
 EPGENIUS_GUILD_ID = int(os.getenv("EPGENIUS_GUILD_ID"))
 GSR_GUILD = discord.Object(id=int(os.getenv("GSR_GUILD_ID")))
 EPGENIUS_GUILD = discord.Object(id=int(os.getenv("EPGENIUS_GUILD_ID")))
 ALL_GUILDS = [GSR_GUILD, EPGENIUS_GUILD]
+MODCHANNEL_ID = int(os.getenv("MODCHANNEL_ID"))
+MODCHANNEL = discord.Object(id=int(os.getenv("MODCHANNEL_ID")))
+ALERT_TAGS = os.getenv("ALERT_TAGS", "")
 
 FILEID_PATTERN = re.compile(r"/file/d/([a-zA-Z0-9_-]+)")
 
@@ -69,17 +70,6 @@ async def gdrive(interaction: discord.Interaction, url: str):
     file_id = match.group(1)
     download_url = f"https://drive.google.com/uc?export=download&id={file_id}&confirm=true"
     await interaction.response.send_message(f"Playlist Export Link:\n{download_url}", ephemeral=True)
-
-@bot.tree.command(name="syncgsr", guild=GSR_GUILD, description="Sync Commands to the GSR Server")
-async def syncgsr(interaction: discord.Interaction):
-    if interaction.user.id not in ADMINS:
-        await interaction.response.send_message("You do not have permission to run this command.", ephemeral=True)
-        return
-    bot.tree.clear_commands(guild=GSR_GUILD)    
-    await interaction.response.defer(ephemeral=True)
-    bot.tree.copy_global_to(guild=GSR_GUILD)
-    synced = await interaction.client.tree.sync(guild=GSR_GUILD) 
-    await interaction.followup.send(f"Commands synced to GSR guild {GSR_GUILD.id}. Synced {len(synced)} commands.", ephemeral=True)
 
 @bot.tree.command(name="killepgbot", description="Kill EPGeniusBot")
 @app_commands.default_permissions(manage_messages=True) 
@@ -207,7 +197,6 @@ async def on_app_command_error(interaction, error):
 @bot.event
 async def on_ready():
     print(f"{bot.user} is online!")
-    print(f"Admins: {ADMINS}")
     print(f"Allowed Role IDs: {ALLOWED_ROLE_IDS}")
 
     synced_global = await bot.tree.sync()
