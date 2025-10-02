@@ -80,12 +80,14 @@ async def syncgsr(interaction: discord.Interaction):
     synced = await interaction.client.tree.sync(guild=GSR_GUILD) 
     await interaction.followup.send(f"Commands synced to GSR guild {GSR_GUILD.id}. Synced {len(synced)} commands.", ephemeral=True)
 
-for guild in ALL_GUILDS:
+def register_killepgbot(guild):
     @bot.tree.command(name="killepgbot", description="Kill EPGeniusBot", guild=guild)
     @app_commands.checks.has_any_role(*ALLOWED_ROLE_IDS)
-    async def killepgbot(interaction: discord.Interaction, _guild=guild):
+    async def killepgbot(interaction: discord.Interaction):
         await interaction.response.send_message("Killing EPGeniusBot", ephemeral=True)
         await bot.close()
+for guild in ALL_GUILDS:
+    register_killepgbot(guild)
     print(f"Registered killepgbot for guild {guild.id}")
 
 class OwnerSelect(Select):
