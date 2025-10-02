@@ -1,9 +1,10 @@
 
 import discord
 from discord import app_commands
-from discord.app_commands import check, CheckFailure, CommandTree, AppCommandPermissions, AppCommandPermissionType
+from discord.app_commands import check, CheckFailure, CommandTree, AppCommandPermissions
 from discord.ext import commands
 from discord.ui import View, Select
+from discord import AppCommandPermissionType
 import re
 import os
 import sys
