@@ -1,6 +1,6 @@
 
 import discord
-from discord import app_commands
+from discord import app_commands, Permissions
 from discord.ext import commands
 from discord.ui import View, Select
 from discord.app_commands import MissingAnyRole
@@ -81,14 +81,12 @@ async def syncgsr(interaction: discord.Interaction):
     synced = await interaction.client.tree.sync(guild=GSR_GUILD) 
     await interaction.followup.send(f"Commands synced to GSR guild {GSR_GUILD.id}. Synced {len(synced)} commands.", ephemeral=True)
 
-from discord import app_commands
-
+async def killepgbot_callback(interaction: discord.Interaction):
+    await interaction.response.send_message("Killing EPGeniusBot", ephemeral=True)
+    await bot.close()
 def register_killepgbot(guild):
-    @app_commands.command(name="killepgbot", description="Kill EPGeniusBot", guild=guild, default_member_permissions=0)
-    @app_commands.checks.has_any_role(*ALLOWED_ROLE_IDS)
-    async def killepgbot(interaction: discord.Interaction):
-        await interaction.response.send_message("Killing EPGeniusBot", ephemeral=True)
-        await bot.close()
+    killepgbot = app_commands.Command(name="killepgbot", description="Kill EPGeniusBot", callback=killepgbot_callback, default_member_permissions=Permissions.none())
+    killepgbot.checks.append(app_commands.checks.has_any_role(*ALLOWED_ROLE_IDS))
     bot.tree.add_command(killepgbot, guild=guild)
 for guild in ALL_GUILDS:
     register_killepgbot(guild)
@@ -234,7 +232,6 @@ async def on_ready():
         cmds = [cmd.name for cmd in bot.tree.get_commands(guild=guild)]
         print(f"Synced {len(synced)} commands to guild {guild.id}: {cmds}")
 
-    global_cmds = [cmd.name for cmd in bot.tree.get_commands(guild=None)]
-    print(f"Global commands ({len(global_cmds)}): {global_cmds}")
+    print(f"{bot.user} is fully ready!")
 
 bot.run(TOKEN)
