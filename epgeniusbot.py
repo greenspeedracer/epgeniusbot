@@ -81,16 +81,11 @@ async def syncgsr(interaction: discord.Interaction):
     synced = await interaction.client.tree.sync(guild=GSR_GUILD) 
     await interaction.followup.send(f"Commands synced to GSR guild {GSR_GUILD.id}. Synced {len(synced)} commands.", ephemeral=True)
 
-async def killepgbot_callback(interaction: discord.Interaction):
+@bot.tree.command(name="killepgbot", description="Kill EPGeniusBot", guilds=ALL_GUILDS)
+@app_commands.checks.has_any_role(*ALLOWED_ROLE_IDS)
+async def killepgbot(interaction: discord.Interaction):
     await interaction.response.send_message("Killing EPGeniusBot", ephemeral=True)
     await bot.close()
-def register_killepgbot(guild):
-    killepgbot = app_commands.Command(name="killepgbot", description="Kill EPGeniusBot", callback=killepgbot_callback, default_permissions=None)
-    killepgbot.checks.append(app_commands.checks.has_any_role(*ALLOWED_ROLE_IDS))
-    bot.tree.add_command(killepgbot, guild=guild)
-for guild in ALL_GUILDS:
-    register_killepgbot(guild)
-    print(f"Registered killepgbot for guild {guild.id}")
 
 @bot.tree.error
 async def on_app_command_error(interaction, error):
@@ -223,6 +218,23 @@ async def on_ready():
             print(f"Failed to fetch {name} guild: {e}")
 
     all_guilds_cache = [g for g in guild_cache.values() if g]
+
+    for guild in all_guilds_cache:
+        try:
+            permissions = [
+                discord.app_commands.CommandPermissions(
+                    id=role_id, 
+                    type=discord.app_commands.CommandPermissionType.role, 
+                    permission=True
+                ) for role_id in ALLOWED_ROLE_IDS
+            ]
+            await bot.tree.get_command('killepgbot').edit_permissions(
+                guild=guild,
+                permissions=permissions
+            )
+            print(f"Set permissions for killepgbot in guild {guild.id}")
+        except Exception as e:
+            print(f"Failed to set permissions for killepgbot in guild {guild.id}: {e}")
 
     synced_global = await bot.tree.sync()
     print(f"Synced {len(synced_global)} global commands: {[cmd.name for cmd in synced_global]}")
