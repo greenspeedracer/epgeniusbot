@@ -14,15 +14,15 @@ from dotenv import load_dotenv
 load_dotenv()
 
 TOKEN = os.getenv("EPGENIUSBOT_TOKEN")
-ALLOWED_ROLE_IDS = list(map(int, os.getenv("ALLOWED_ROLE_IDS", "").split(",")))
+MOD_ROLE_IDS = list(map(int, os.getenv("MOD_ROLE_IDS", "").split(",")))
 GSR_GUILD_ID = int(os.getenv("GSR_GUILD_ID"))
 EPGENIUS_GUILD_ID = int(os.getenv("EPGENIUS_GUILD_ID"))
 GSR_GUILD = discord.Object(id=int(os.getenv("GSR_GUILD_ID")))
 EPGENIUS_GUILD = discord.Object(id=int(os.getenv("EPGENIUS_GUILD_ID")))
 ALL_GUILDS = [GSR_GUILD, EPGENIUS_GUILD]
 MODCHANNEL_ID = int(os.getenv("MODCHANNEL_ID"))
-MODCHANNEL = discord.Object(id=int(os.getenv("MODCHANNEL_ID")))
-ALERT_TAGS = os.getenv("ALERT_TAGS", "")
+MODCHANNEL = None
+MOD_MENTIONS = " ".join([f"<@&{role_id}>" for role_id in MOD_ROLE_IDS])
 
 FILEID_PATTERN = re.compile(r"/file/d/([a-zA-Z0-9_-]+)")
 
@@ -57,6 +57,13 @@ intents.message_content = True
 intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+
+# For sending alerts
+# await MODCHANNEL.send(f"{MOD_MENTIONS} Something needs attention!")
+
+# Or in an interaction response
+# await interaction.response.send_message(f"{MOD_MENTIONS} Alert sent!")
+
 @bot.tree.command(name="playlist", description="Convert Google Drive Playlist Share Link into Playlist Export Link")
 @app_commands.describe(url="Google Drive Playlist Share Link")
 async def gdrive(interaction: discord.Interaction, url: str):
@@ -73,7 +80,7 @@ async def gdrive(interaction: discord.Interaction, url: str):
 
 @bot.tree.command(name="killepgbot", description="Kill EPGeniusBot")
 @app_commands.default_permissions(manage_messages=True) 
-@app_commands.checks.has_any_role(*ALLOWED_ROLE_IDS)
+@app_commands.checks.has_any_role(*MOD_ROLE_IDS)
 async def killepgbot(interaction: discord.Interaction):
     await interaction.response.send_message("Killing EPGeniusBot", ephemeral=True)
     await bot.close()
@@ -197,17 +204,28 @@ async def on_app_command_error(interaction, error):
 @bot.event
 async def on_ready():
     print(f"{bot.user} is online!")
-    print(f"Allowed Role IDs: {ALLOWED_ROLE_IDS}")
+    print(f"Mod Role IDs: {MOD_ROLE_IDS}")
+    print(f"GSR Guild ID: {GSR_GUILD_ID}")
+    print(f"EPGenius Guild ID: {EPGENIUS_GUILD_ID}")
+
+    global MODCHANNEL
+    MODCHANNEL = bot.get_channel(MODCHANNEL_ID)
+    if MODCHANNEL:
+        print(f"Mod channel found: {MODCHANNEL.name}")
+    else:
+        print(f"Warning: Could not find mod channel with ID {MODCHANNEL_ID}")
 
     synced_global = await bot.tree.sync()
     print(f"Synced {len(synced_global)} global commands: {[cmd.name for cmd in synced_global]}")
 
     for guild_obj in ALL_GUILDS:
+        guild = bot.get_guild(guild_obj.id)
+        guild_name = guild.name if guild else "Unknown"
         try:
             synced = await bot.tree.sync(guild=guild_obj)
-            print(f"Synced {len(synced)} commands to guild {guild_obj.id}")
+            print(f"Synced {len(synced)} commands to guild {guild_name} ({guild_obj.id})")
         except Exception as e:
-            print(f"Failed to sync to guild {guild_obj.id}: {e}")
+            print(f"Failed to sync to guild {guild_name} ({guild_obj.id}): {e}")
 
     print(f"{bot.user} is fully ready!")
 
