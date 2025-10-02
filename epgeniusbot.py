@@ -82,7 +82,7 @@ async def syncgsr(interaction: discord.Interaction):
     await interaction.followup.send(f"Commands synced to GSR guild {GSR_GUILD.id}. Synced {len(synced)} commands.", ephemeral=True)
 
 def register_killepgbot(guild):
-    @bot.tree.command(name="killepgbot", description="Kill EPGeniusBot", guild=guild)
+    @bot.tree.command(name="killepgbot", description="Kill EPGeniusBot", guild=guild, default_member_permissions=0)
     @app_commands.checks.has_any_role(*ALLOWED_ROLE_IDS)
     async def killepgbot(interaction: discord.Interaction):
         await interaction.response.send_message("Killing EPGeniusBot", ephemeral=True)
