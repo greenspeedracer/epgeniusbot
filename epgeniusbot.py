@@ -1,7 +1,7 @@
 
 import discord
 from discord import app_commands
-from discord.app_commands import check, CheckFailure, CommandTree, AppCommandPermission, AppCommandPermissionType
+from discord.app_commands import check, CheckFailure, CommandTree, AppCommandPermissions, AppCommandPermissionType
 from discord.ext import commands
 from discord.ui import View, Select
 import re
@@ -57,14 +57,14 @@ intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 async def restrict_command(cmd, guild):
-    perms = [AppCommandPermission(
+    perms = [AppCommandPermissions(
         id=guild.default_role.id,
         type=AppCommandPermissionType.role,
         permission=False
     )]
 
     for role_id in ALLOWED_ROLE_IDS:
-        perms.append(AppCommandPermission(
+        perms.append(AppCommandPermissions(
             id=role_id,
             type=AppCommandPermissionType.role,
             permission=True
@@ -232,7 +232,7 @@ async def on_ready():
             for cmd in synced:
                 if cmd.name in RESTRICTED_COMMANDS:
                     perms = [
-                        AppCommandPermission(
+                        AppCommandPermissions(
                             id=guild.default_role.id,
                             type=AppCommandPermissionType.role,
                             permission=False
@@ -240,7 +240,7 @@ async def on_ready():
                     ]
                     for role_id in ALLOWED_ROLE_IDS:
                         perms.append(
-                            AppCommandPermission(
+                            AppCommandPermissions(
                                 id=role_id,
                                 type=AppCommandPermissionType.role,
                                 permission=True
