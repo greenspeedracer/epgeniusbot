@@ -68,7 +68,7 @@ async def check_site_status(url, timeout):
                 if status == 200:
                     return (200, "OK", "")
                 else:
-                    return (status, f"HTTP_{status}", f"HTTP {status}")
+                    return (status, "HTTP_ERROR", f"Server returned HTTP {status}")
     except asyncio.TimeoutError:
         return (0, "TIMEOUT", f"Request timed out after {timeout} seconds")
     except aiohttp.ClientConnectorError as e:
@@ -94,14 +94,11 @@ async def send_repo_alert(status_code, error_type, error_msg):
     
     embed = discord.Embed(
         title="🚨 EPGenius Server Down Alert",
-        description=f"{MOD_MENTIONS}",
+        description=f"**{REPO_URL}** is currently down",
         color=discord.Color.red()
     )
-    embed.add_field(name="URL", value=REPO_URL, inline=False)
-    embed.add_field(name="Status Code", value=status_display, inline=True)
-    embed.add_field(name="Error Type", value=error_type, inline=True)
-    if error_msg:
-        embed.add_field(name="Error Details", value=error_msg, inline=False)
+    embed.add_field(name="Status", value=status_display, inline=True)
+    embed.add_field(name="Issue", value=error_msg, inline=False)
     
     await MODCHANNEL.send(content=MOD_MENTIONS, embed=embed)
 
@@ -111,7 +108,7 @@ async def send_repo_recovery_alert():
     
     embed = discord.Embed(
         title="✅ EPGenius Server Recovered",
-        description=f"EPGenius server {REPO_URL} is back online",
+        description=f"**{REPO_URL}** is back online",
         color=discord.Color.green()
     )
     embed.add_field(name="Status", value="200 OK", inline=False)
