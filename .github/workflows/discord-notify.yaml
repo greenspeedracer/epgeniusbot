@@ -28,13 +28,20 @@ jobs:
 
           echo "Sending image: $IMAGE_PATH"
 
-          # Build URL and encode ONLY spaces (not the protocol)
+          # Build URL and encode spaces only
           IMAGE_URL="https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/${IMAGE_PATH}"
           IMAGE_URL=$(echo "$IMAGE_URL" | sed 's/ /%20/g')
 
+          # Get commit message and escape quotes
+          COMMIT_MSG="${{ github.event.head_commit.message }}"
+          COMMIT_MSG=$(echo "$COMMIT_MSG" | sed 's/"/\\"/g')
+
+          COMMIT_URL="${{ github.event.head_commit.url }}"
+
+          echo "Commit message: $COMMIT_MSG"
           echo "Image URL: $IMAGE_URL"
 
-          # Send to Discord
+          # Send to Discord - title now links to the image
           curl -H "Content-Type: application/json" \
-            -d "{\"embeds\":[{\"color\":5814783,\"image\":{\"url\":\"$IMAGE_URL\"},\"footer\":{\"text\":\"${{ github.repository }}\"}}]}" \
+            -d "{\"embeds\":[{\"title\":\"${COMMIT_MSG}\",\"url\":\"${IMAGE_URL}\",\"description\":\"[View Commit](${COMMIT_URL})\",\"color\":5814783,\"image\":{\"url\":\"${IMAGE_URL}\"},\"footer\":{\"text\":\"${{ github.repository }}\"}}]}" \
             ${{ secrets.DISCORD_WEBHOOK_URL }}
