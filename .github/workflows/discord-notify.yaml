@@ -19,6 +19,7 @@ jobs:
             **/*.jpg
             **/*.jpeg
             **/*.gif
+          separator: "|"
 
       - name: Send to Discord
         if: steps.changed-files.outputs.any_changed == 'true'
@@ -26,6 +27,8 @@ jobs:
           ALL_FILES="${{ steps.changed-files.outputs.all_changed_files }}"
           COMMIT_MSG="${{ github.event.head_commit.message }}"
           COMMIT_URL="${{ github.event.head_commit.url }}"
+
+          IFS='|'
 
           for IMAGE_PATH in $ALL_FILES; do
             IMAGE_PATH=$(echo "$IMAGE_PATH" | sed 's/\\//g')
