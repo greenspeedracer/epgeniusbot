@@ -2,8 +2,6 @@ name: Discord Logo Push Notification
 
 on:
   push:
-    branches:
-      - main
 
 jobs:
   notify-discord:
@@ -11,29 +9,36 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Get changed image files
+        id: changed-files
+        uses: tj-actions/changed-files@v42
         with:
-          fetch-depth: 2
+          files: |
+            **/*.png
+            **/*.jpg
+            **/*.jpeg
+            **/*.gif
 
-      - name: Get image files
-        id: files
+      - name: Debug output
         run: |
-          IMAGE=$(git diff-tree --no-commit-id --name-only -r ${{ github.sha }} | grep -E '\.(png|jpg|jpeg|gif)$' | head -n 1)
-          if [ -n "$IMAGE" ]; then
-            echo "path=$IMAGE" >> $GITHUB_OUTPUT
-          fi
+          echo "Any changed: ${{ steps.changed-files.outputs.any_changed }}"
+          echo "All changed files: ${{ steps.changed-files.outputs.all_changed_files }}"
 
-      - name: Send webhook
-        if: steps.files.outputs.path != ''
-        env:
-          WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+      - name: Send to Discord
+        if: steps.changed-files.outputs.any_changed == 'true'
         run: |
-          IMAGE_PATH="${{ steps.files.outputs.path }}"
+          # Get first image file
+          IMAGE_PATH=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | awk '{print $1}')
+          echo "Sending image: $IMAGE_PATH"
+
+          # Build URL with proper encoding
           IMAGE_URL="https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/${IMAGE_PATH}"
+          IMAGE_URL=$(echo "$IMAGE_URL" | sed 's/ /%20/g; s/:/%3A/g')
 
-          # URL encode the path
-          IMAGE_URL=$(echo "$IMAGE_URL" | sed 's/:/%3A/g')
+          echo "Image URL: $IMAGE_URL"
 
-          # Send simple embed with only required non-empty fields
-          curl -H "Content-Type: application/json" \
+          # Send to Discord with verbose output
+          curl -v -H "Content-Type: application/json" \
             -d "{\"embeds\":[{\"color\":5814783,\"image\":{\"url\":\"$IMAGE_URL\"},\"footer\":{\"text\":\"${{ github.repository }}\"}}]}" \
-            "$WEBHOOK_URL"
+            ${{ secrets.DISCORD_WEBHOOK_URL }}
