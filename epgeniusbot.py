@@ -516,6 +516,12 @@ async def on_ready():
         check_repo_status.start()
         print(f"EPGenius server status monitoring started for {REPO_URL}")
 
+    logos = await get_logo_list()
+    if logos:
+        print(f"Pre-cached {len(logos)} logos")
+    else:
+        print("Failed to pre-cache logos")    
+
     synced_global = await bot.tree.sync()
     print(f"Synced {len(synced_global)} global commands: {[cmd.name for cmd in synced_global]}")
 
