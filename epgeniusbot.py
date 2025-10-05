@@ -11,6 +11,7 @@ import asyncio
 import aiohttp
 import json
 from typing import List
+from urllib.parse import quote
 from datetime import datetime
 from thefuzz import fuzz, process
 from dotenv import load_dotenv
@@ -85,7 +86,7 @@ async def fetch_logos_from_github() -> List[dict]:
                     {
                         'name': item['path'].split('/')[-1].replace('.png', ''),
                         'path': item['path'],
-                        'url': f"https://raw.githubusercontent.com/K-yzu/Logos/main/{item['path']}"
+                        'url': f"https://raw.githubusercontent.com/K-yzu/Logos/main/{quote(item['path'])}" 
                     }
                     for item in data.get('tree', [])
                     if item['type'] == 'blob' and item['path'].lower().endswith('.png')
