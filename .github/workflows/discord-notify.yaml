@@ -23,25 +23,15 @@ jobs:
       - name: Send to Discord
         if: steps.changed-files.outputs.any_changed == 'true'
         run: |
-          # Get first image file (preserving spaces)
           IMAGE_PATH="${{ steps.changed-files.outputs.all_changed_files }}"
-
-          echo "Sending image: $IMAGE_PATH"
-
-          # Build URL and encode spaces only
           IMAGE_URL="https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/${IMAGE_PATH}"
           IMAGE_URL=$(echo "$IMAGE_URL" | sed 's/ /%20/g')
 
-          # Get commit message and escape quotes
           COMMIT_MSG="${{ github.event.head_commit.message }}"
           COMMIT_MSG=$(echo "$COMMIT_MSG" | sed 's/"/\\"/g')
-
           COMMIT_URL="${{ github.event.head_commit.url }}"
 
-          echo "Commit message: $COMMIT_MSG"
-          echo "Image URL: $IMAGE_URL"
-
-          # Send to Discord - title now links to the image
+          # Send with image URL in description instead of image field
           curl -H "Content-Type: application/json" \
-            -d "{\"embeds\":[{\"title\":\"${COMMIT_MSG}\",\"url\":\"${IMAGE_URL}\",\"description\":\"[View Commit](${COMMIT_URL})\",\"color\":5814783,\"image\":{\"url\":\"${IMAGE_URL}\"},\"footer\":{\"text\":\"${{ github.repository }}\"}}]}" \
+            -d "{\"embeds\":[{\"title\":\"${COMMIT_MSG}\",\"url\":\"${IMAGE_URL}\",\"description\":\"[View Commit](${COMMIT_URL})\\n\\n${IMAGE_URL}\",\"color\":5814783,\"footer\":{\"text\":\"${{ github.repository }}\"}}]}" \
             ${{ secrets.DISCORD_WEBHOOK_URL }}
