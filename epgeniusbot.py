@@ -10,6 +10,7 @@ import sys
 import asyncio
 import aiohttp
 import json
+from typing import List
 from datetime import datetime
 from thefuzz import fuzz, process
 from dotenv import load_dotenv
@@ -40,6 +41,119 @@ intents.guilds = True
 intents.message_content = True
 intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
+
+
+logo_cache = []
+cache_timestamp = 0
+
+class LogoSelectView(View):
+    def __init__(self, logos):
+        super().__init__(timeout=60)
+        
+        options = [
+            discord.SelectOption(label=logo['name'], value=logo['name'])
+            for logo in logos[:25] 
+        ]
+        
+        select = Select(placeholder="Choose a logo...", options=options)
+        select.callback = self.select_callback
+        self.add_item(select)
+        self.logos = {logo['name']: logo for logo in logos}
+    
+    async def select_callback(self, interaction: discord.Interaction):
+        selected_name = interaction.data['values'][0]
+        logo = self.logos[selected_name]
+        
+        embed = discord.Embed(
+            title=f"Logo: {logo['name']}",
+            color=discord.Color.blue(),
+            description=f"[Direct Link]({logo['url']})"
+        )
+        embed.set_image(url=logo['url'])
+        embed.set_footer(text="Source: K-yzu/Logos")
+        
+        await interaction.response.send_message(embed=embed)
+
+async def fetch_logos_from_github() -> List[dict]:
+    url = "https://api.github.com/repos/K-yzu/Logos/git/trees/main?recursive=1"
+    
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as response:
+            if response.status == 200:
+                data = await response.json()
+                logos = [
+                    {
+                        'name': item['path'].split('/')[-1].replace('.png', ''),
+                        'path': item['path'],
+                        'url': f"https://raw.githubusercontent.com/K-yzu/Logos/main/{item['path']}"
+                    }
+                    for item in data.get('tree', [])
+                    if item['type'] == 'blob' and item['path'].lower().endswith('.png')
+                ]
+                return logos
+            return []
+
+async def get_logo_list() -> List[dict]:
+    global logo_cache, cache_timestamp
+    import time
+    current_time = time.time()
+    
+    if not logo_cache or (current_time - cache_timestamp) > 3600:
+        logo_cache = await fetch_logos_from_github()
+        cache_timestamp = current_time
+    
+    return logo_cache
+
+async def logo_autocomplete(
+    interaction: discord.Interaction,
+    current: str
+) -> List[app_commands.Choice[str]]:
+    logos = await get_logo_list()
+    
+    matching = [
+        logo for logo in logos
+        if current.lower() in logo['name'].lower()
+    ]
+    
+    return [
+        app_commands.Choice(name=logo['name'], value=logo['name'])
+        for logo in matching[:25]
+    ]
+
+@bot.tree.command(name="logo", description="Search K-yzu's GitHub Repo for a Channel Logo")
+@app_commands.autocomplete(channel=logo_autocomplete)
+async def logo_search(interaction: discord.Interaction, channel: str):
+    """Search and display channel logo"""
+    await interaction.response.defer()
+    
+    logos = await get_logo_list()
+    
+    exact_match = next((logo for logo in logos if logo['name'].lower() == channel.lower()), None)
+    
+    if exact_match:
+        embed = discord.Embed(
+            title=f"Logo: {exact_match['name']}",
+            color=discord.Color.blue(),
+            description=f"[Direct Link]({exact_match['url']})"
+        )
+        embed.set_image(url=exact_match['url'])
+        embed.set_footer(text="Source: K-yzu/Logos")
+        
+        await interaction.followup.send(embed=embed)
+    else:
+        partial_matches = [
+            logo for logo in logos
+            if channel.lower() in logo['name'].lower()
+        ]
+        
+        if partial_matches:
+            # USE THE VIEW HERE
+            view = LogoSelectView(partial_matches)
+            await interaction.followup.send("Select a logo:", view=view)
+        else:
+            await interaction.followup.send(
+                f"No logos found matching '{channel}'"
+            )
 
 bot.last_repo_status = None
 

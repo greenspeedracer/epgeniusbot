@@ -4,5 +4,6 @@ __pycache__/
 *.py[cod]
 epgeniusbot_old.py
 ideas.txt
-discord_bot_spec.md
-discord_bot_spec.pdf
+epgeniusbot.md
+epgeniusbot.html
+epgeniusbot.pdf
