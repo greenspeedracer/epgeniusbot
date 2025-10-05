@@ -124,7 +124,6 @@ async def logo_autocomplete(
 @bot.tree.command(name="logo", description="Search K-yzu's GitHub Repo for a Channel Logo")
 @app_commands.autocomplete(channel=logo_autocomplete)
 async def logo_search(interaction: discord.Interaction, channel: str):
-    """Search and display channel logo"""
     await interaction.response.defer()
     
     logos = await get_logo_list()
@@ -136,9 +135,9 @@ async def logo_search(interaction: discord.Interaction, channel: str):
             title=f"Logo: {exact_match['name']}",
             color=discord.Color.blue(),
             description=f"[Direct Link]({exact_match['url']})"
-        )
+            )
         embed.set_image(url=exact_match['url'])
-        embed.set_footer(text="Source: K-yzu/Logos")
+        embed.add_field(name="Source", value="[📂 K-yzu's Logo Repository](https://github.com/K-yzu/Logos)", inline=False)
         
         await interaction.followup.send(embed=embed)
     else:
@@ -148,7 +147,6 @@ async def logo_search(interaction: discord.Interaction, channel: str):
         ]
         
         if partial_matches:
-            # USE THE VIEW HERE
             view = LogoSelectView(partial_matches)
             await interaction.followup.send("Select a logo:", view=view)
         else:
