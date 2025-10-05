@@ -31,7 +31,7 @@ jobs:
           COMMIT_MSG=$(echo "$COMMIT_MSG" | sed 's/"/\\"/g')
           COMMIT_URL="${{ github.event.head_commit.url }}"
 
-          # Send with image URL in description instead of image field
+          # Send with content field for auto-embed + embed for formatting
           curl -H "Content-Type: application/json" \
-            -d "{\"embeds\":[{\"title\":\"${COMMIT_MSG}\",\"url\":\"${IMAGE_URL}\",\"description\":\"[View Commit](${COMMIT_URL})\\n\\n${IMAGE_URL}\",\"color\":5814783,\"footer\":{\"text\":\"${{ github.repository }}\"}}]}" \
+            -d "{\"content\":\"${IMAGE_URL}\",\"embeds\":[{\"title\":\"${COMMIT_MSG}\",\"url\":\"${IMAGE_URL}\",\"description\":\"[View Commit](${COMMIT_URL})\",\"color\":5814783,\"footer\":{\"text\":\"${{ github.repository }}\"}}]}" \
             ${{ secrets.DISCORD_WEBHOOK_URL }}
