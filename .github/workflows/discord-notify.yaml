@@ -1,0 +1,37 @@
+name: Discord Logo Push Notification
+
+on:
+  push:
+    paths:
+      - '**/*.png'
+      - '**/*.jpg'
+      - '**/*.jpeg'
+      - '**/*.gif'
+
+jobs:
+  notify-discord:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v41
+        with:
+          files: |
+            **/*.png
+            **/*.jpg
+            **/*.jpeg
+            **/*.gif
+
+      - name: Send Discord notification
+        if: steps.changed-files.outputs.any_changed == 'true'
+        uses: tsickert/discord-webhook@v6.0.0
+        with:
+          webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          embed-title: "${{ github.event.head_commit.message }}"
+          embed-description: "Pushed by ${{ github.actor }}"
+          embed-url: "${{ github.event.head_commit.url }}"
+          embed-image-url: "https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/${{ steps.changed-files.outputs.all_changed_files }}"
+          embed-color: 5814783
