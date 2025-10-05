@@ -10,6 +10,7 @@ import sys
 import asyncio
 import aiohttp
 import json
+import time
 from typing import List
 from urllib.parse import quote
 from datetime import datetime
@@ -43,6 +44,25 @@ intents.message_content = True
 intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+@bot.tree.command(name="logoupdate", description="Update the Logo Cache Immediately")
+@app_commands.default_permissions(manage_messages=True)
+@app_commands.checks.has_any_role(*MOD_ROLE_IDS)
+async def logoupdate(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    global logo_cache, cache_timestamp
+    logo_cache = await fetch_logos_from_github()
+    cache_timestamp = time.time()
+    
+    if logo_cache:
+        await interaction.followup.send(
+            f"✅ Logo cache updated! Loaded {len(logo_cache)} logos.",
+            ephemeral=True
+        )
+    else:
+        await interaction.followup.send(
+            "❌ Failed to refresh logo cache. If this error persists, please notify @greenspeedracer.",
+            ephemeral=True
+        )
 
 logo_cache = []
 cache_timestamp = 0
@@ -64,16 +84,16 @@ class LogoSelectView(View):
     async def select_callback(self, interaction: discord.Interaction):
         selected_name = interaction.data['values'][0]
         logo = self.logos[selected_name]
-        
+    
         embed = discord.Embed(
             title=f"Logo: {logo['name']}",
             color=discord.Color.blue(),
             description=f"[Direct Link]({logo['url']})"
-        )
+            )
         embed.set_image(url=logo['url'])
-        embed.set_footer(text="Source: K-yzu/Logos")
-        
-        await interaction.response.send_message(embed=embed)
+        embed.add_field(name="Source", value="[📂 K-yzu's Logo Repository](https://github.com/K-yzu/Logos)", inline=False)
+    
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 async def fetch_logos_from_github() -> List[dict]:
     url = "https://api.github.com/repos/K-yzu/Logos/git/trees/main?recursive=1"
@@ -124,7 +144,7 @@ async def logo_autocomplete(
 @bot.tree.command(name="logo", description="Search K-yzu's GitHub Repo for a Channel Logo")
 @app_commands.autocomplete(channel=logo_autocomplete)
 async def logo_search(interaction: discord.Interaction, channel: str):
-    await interaction.response.defer()
+    await interaction.response.defer(ephemeral=True)
     
     logos = await get_logo_list()
     
@@ -139,7 +159,7 @@ async def logo_search(interaction: discord.Interaction, channel: str):
         embed.set_image(url=exact_match['url'])
         embed.add_field(name="Source", value="[📂 K-yzu's Logo Repository](https://github.com/K-yzu/Logos)", inline=False)
         
-        await interaction.followup.send(embed=embed)
+        await interaction.followup.send(embed=embed, ephemeral=True)
     else:
         partial_matches = [
             logo for logo in logos
@@ -148,11 +168,10 @@ async def logo_search(interaction: discord.Interaction, channel: str):
         
         if partial_matches:
             view = LogoSelectView(partial_matches)
-            await interaction.followup.send("Select a logo:", view=view)
+            await interaction.followup.send("Select a logo:", view=view, ephemeral=True)
         else:
             await interaction.followup.send(
-                f"No logos found matching '{channel}'"
-            )
+                f"No logos found matching '{channel}'", ephemeral=True)
 
 bot.last_repo_status = None
 
