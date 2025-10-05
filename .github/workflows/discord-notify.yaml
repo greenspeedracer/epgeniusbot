@@ -2,36 +2,38 @@ name: Discord Logo Push Notification
 
 on:
   push:
-    paths:
-      - '**/*.png'
-      - '**/*.jpg'
-      - '**/*.jpeg'
-      - '**/*.gif'
+    branches:
+      - main
 
 jobs:
   notify-discord:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Get changed files
-        id: changed-files
-        uses: tj-actions/changed-files@v41
         with:
-          files: |
-            **/*.png
-            **/*.jpg
-            **/*.jpeg
-            **/*.gif
+          fetch-depth: 2
 
-      - name: Send Discord notification
-        if: steps.changed-files.outputs.any_changed == 'true'
-        uses: tsickert/discord-webhook@v6.0.0
-        with:
-          webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          embed-title: "${{ github.event.head_commit.message }}"
-          embed-description: "Pushed by ${{ github.actor }}"
-          embed-url: "${{ github.event.head_commit.url }}"
-          embed-image-url: "https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/${{ steps.changed-files.outputs.all_changed_files }}"
-          embed-color: 5814783
+      - name: Get image files
+        id: files
+        run: |
+          IMAGE=$(git diff-tree --no-commit-id --name-only -r ${{ github.sha }} | grep -E '\.(png|jpg|jpeg|gif)$' | head -n 1)
+          if [ -n "$IMAGE" ]; then
+            echo "path=$IMAGE" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Send webhook
+        if: steps.files.outputs.path != ''
+        env:
+          WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          IMAGE_PATH="${{ steps.files.outputs.path }}"
+          IMAGE_URL="https://raw.githubusercontent.com/${{ github.repository }}/${{ github.sha }}/${IMAGE_PATH}"
+
+          # URL encode the path
+          IMAGE_URL=$(echo "$IMAGE_URL" | sed 's/:/%3A/g')
+
+          # Send simple embed with only required non-empty fields
+          curl -H "Content-Type: application/json" \
+            -d "{\"embeds\":[{\"color\":5814783,\"image\":{\"url\":\"$IMAGE_URL\"},\"footer\":{\"text\":\"${{ github.repository }}\"}}]}" \
+            "$WEBHOOK_URL"
