@@ -2,7 +2,7 @@
 import discord
 from discord import app_commands, Permissions
 from discord.ext import commands, tasks
-from discord.ui import View, Select, Modal, TextInput
+from discord.ui import View, Select
 from discord.app_commands import MissingAnyRole
 import re
 import os
@@ -11,7 +11,6 @@ import asyncio
 import aiohttp
 import json
 import time
-import requests
 from typing import List
 from urllib.parse import quote
 from datetime import datetime
@@ -45,166 +44,6 @@ intents.message_content = True
 intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-def format_value(value):
-    if isinstance(value, int) and 1000000000 <= value <= 9999999999:
-        try:
-            dt = datetime.fromtimestamp(value)
-            return f"{value} ({dt.strftime('%Y-%m-%d %H:%M:%S')})"
-        except:
-            return value
-    elif isinstance(value, str) and value.isdigit() and len(value) == 10:
-        try:
-            dt = datetime.fromtimestamp(int(value))
-            return f"{value} ({dt.strftime('%Y-%m-%d %H:%M:%S')})"
-        except:
-            return value
-    elif isinstance(value, list):
-        return ', '.join(str(v) for v in value)
-    elif isinstance(value, bool):
-        return 'Yes' if value else 'No'
-    elif value == 1:
-        return 'Yes'
-    elif value == 0:
-        return 'No'
-    return value
-
-def format_dict_to_text(d, indent=0, header=None):
-    lines = []
-    
-    if header:
-        lines.append("=" * 40)
-        lines.append(header.upper())
-        lines.append("=" * 40)
-    
-    max_key_len = max(len(str(k)) for k in d.keys()) if d else 0
-    
-    for key, value in d.items():
-        formatted_key = str(key).replace('_', ' ').title()
-        
-        if isinstance(value, dict):
-            lines.extend(format_dict_to_text(value, indent + 2, formatted_key))
-        else:
-            formatted_value = format_value(value)
-            lines.append(f"{' ' * indent}{formatted_key}: {formatted_value}")
-    
-    return lines
-
-class ServiceInfoModal(Modal, title="Service Information"):  
-    dns = TextInput(
-        label="DNS/URL",
-        placeholder="http://example.com",
-        required=True,
-        max_length=200
-    )
-    
-    username = TextInput(
-        label="Username",
-        placeholder="Username",
-        required=True,
-        max_length=100
-    )
-    
-    password = TextInput(
-        label="Password",
-        placeholder="Password",
-        required=True,
-        max_length=100,
-        style=discord.TextStyle.short
-    )
-
-    async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
-
-        url = f"{self.dns.value}/player_api.php?username={self.username.value}&password={self.password.value}"
-
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        }
-
-        try:
-            response = requests.get(url, headers=headers, timeout=10)
-
-            if response.status_code == 200:
-                data = response.json()
-
-                user_info = data.get('user_info', {})
-                server_info = data.get('server_info', {})
-
-                cred_embed = discord.Embed(
-                    title="🔐 Service Credentials",
-                    color=discord.Color.blue()
-                )
-                cred_text = f"**DNS/URL:** ||{server_info.get('url', 'N/A')}||\n"
-                cred_text += f"**Username:** ||{user_info.get('username', 'N/A')}||\n"
-                cred_text += f"**Password:** ||{user_info.get('password', 'N/A')}||"
-                cred_embed.description = cred_text
-
-                await interaction.followup.send(embed=cred_embed, ephemeral=True)
-
-                embed = discord.Embed(
-                    title="📊 Service Information",
-                    color=discord.Color.blue()
-                )
-
-                user_text = "__**👤 User Information**__\n\n"
-                if user_info.get('message'):
-                    user_text += f"**Message:** {user_info['message']}\n"
-                if user_info.get('auth') is not None:
-                    user_text += f"**Auth:** {'Yes' if user_info['auth'] == 1 else 'No'}\n"
-                if user_info.get('status'):
-                    user_text += f"**Status:** {user_info['status']}\n"
-                if user_info.get('exp_date'):
-                    exp_dt = datetime.fromtimestamp(int(user_info['exp_date']))
-                    user_text += f"**Expiration:** {exp_dt.strftime('%Y-%m-%d %H:%M:%S')}\n"
-                if user_info.get('is_trial') is not None:
-                    user_text += f"**Trial:** {'Yes' if user_info['is_trial'] == '1' else 'No'}\n"
-                if user_info.get('active_cons') is not None:
-                    user_text += f"**Active Connections:** {user_info['active_cons']}\n"
-                if user_info.get('created_at'):
-                    created_dt = datetime.fromtimestamp(int(user_info['created_at']))
-                    user_text += f"**Created:** {created_dt.strftime('%Y-%m-%d %H:%M:%S')}\n"
-                if user_info.get('max_connections'):
-                    user_text += f"**Max Connections:** {user_info['max_connections']}\n"
-                if user_info.get('allowed_output_formats'):
-                    formats = ', '.join(user_info['allowed_output_formats']) if isinstance(user_info['allowed_output_formats'], list) else user_info['allowed_output_formats']
-                    user_text += f"**Output Formats:** {formats}"
-
-                embed.add_field(name="\u200b", value=user_text, inline=False)
-
-                server_text = "__**🖥️ Server Information**__\n\n"
-                if server_info.get('port'):
-                    server_text += f"**Port:** {server_info['port']}\n"
-                if server_info.get('https_port'):
-                    server_text += f"**HTTPS Port:** {server_info['https_port']}\n"
-                if server_info.get('server_protocol'):
-                    server_text += f"**Protocol:** {server_info['server_protocol']}\n"
-                if server_info.get('rtmp_port'):
-                    server_text += f"**RTMP Port:** {server_info['rtmp_port']}\n"
-                if server_info.get('timezone'):
-                    server_text += f"**Timezone:** {server_info['timezone']}\n"
-                if server_info.get('time_now'):
-                    server_text += f"**Server Time:** {server_info['time_now']}"
-
-                embed.add_field(name="\u200b", value=server_text, inline=False)
-
-                await interaction.followup.send(embed=embed, ephemeral=True)
-
-            else:
-                await interaction.followup.send(
-                    "❌ Unable to retrieve service information. Please check your DNS and credentials and try again.",
-                    ephemeral=True
-                )
-
-        except Exception:
-            await interaction.followup.send(
-                "❌ Unable to retrieve service information. Please check your DNS and credentials and try again.",
-                ephemeral=True
-            )
-
-@bot.tree.command(name="serviceinfo", description="Get Service Information")
-async def serviceinfo(interaction: discord.Interaction):
-    await interaction.response.send_modal(ServiceInfoModal())
-
 @bot.tree.command(name="logoupdate", description="Update the Logo Cache Immediately")
 @app_commands.default_permissions(manage_messages=True)
 @app_commands.checks.has_any_role(*MOD_ROLE_IDS)
@@ -216,12 +55,12 @@ async def logoupdate(interaction: discord.Interaction):
     
     if logo_cache:
         await interaction.followup.send(
-            f"Logo cache updated! Loaded {len(logo_cache)} logos.",
+            f"✅ Logo cache updated! Loaded {len(logo_cache)} logos.",
             ephemeral=True
         )
     else:
         await interaction.followup.send(
-            "Failed to refresh logo cache. If this error persists, please notify @greenspeedracer.",
+            "❌ Failed to refresh logo cache. If this error persists, please notify @greenspeedracer.",
             ephemeral=True
         )
 
@@ -302,14 +141,14 @@ async def logo_autocomplete(
         for logo in matching[:25]
     ]
 
-@bot.tree.command(name="logo", description="Search K-yzu's GitHub Repo for a Logo")
-@app_commands.autocomplete(name=logo_autocomplete)
-async def logo_search(interaction: discord.Interaction, name: str):
+@bot.tree.command(name="logo", description="Search K-yzu's GitHub Repo for a Channel Logo")
+@app_commands.autocomplete(channel=logo_autocomplete)
+async def logo_search(interaction: discord.Interaction, channel: str):
     await interaction.response.defer(ephemeral=True)
     
     logos = await get_logo_list()
     
-    exact_match = next((logo for logo in logos if logo['name'].lower() == name.lower()), None)
+    exact_match = next((logo for logo in logos if logo['name'].lower() == channel.lower()), None)
     
     if exact_match:
         embed = discord.Embed(
@@ -324,7 +163,7 @@ async def logo_search(interaction: discord.Interaction, name: str):
     else:
         partial_matches = [
             logo for logo in logos
-            if name.lower() in logo['name'].lower()
+            if channel.lower() in logo['name'].lower()
         ]
         
         if partial_matches:
@@ -332,21 +171,20 @@ async def logo_search(interaction: discord.Interaction, name: str):
             await interaction.followup.send("Select a logo:", view=view, ephemeral=True)
         else:
             await interaction.followup.send(
-                f"No logos found matching '{name}'", ephemeral=True)
+                f"No logos found matching '{channel}'", ephemeral=True)
 
 bot.last_repo_status = None
 
 @tasks.loop(seconds=CHECK_INTERVAL)
 async def check_repo_status():
     status_code, error_type, error_msg = await check_site_status(REPO_URL, TIMEOUT)
-    current_status = "UP" if status_code == 200 else "DOWN"
+    current_status = f"{status_code}:{error_type}"
     
     if current_status != bot.last_repo_status:
-        if current_status == "DOWN":
+        if status_code != 200:
             await send_repo_alert(status_code, error_type, error_msg)
         elif bot.last_repo_status is not None:
             await send_repo_recovery_alert()
-        
         bot.last_repo_status = current_status
 
 @check_repo_status.before_loop
