@@ -209,21 +209,28 @@ async def serviceinfo(interaction: discord.Interaction):
 @app_commands.default_permissions(manage_messages=True)
 @app_commands.checks.has_any_role(*MOD_ROLE_IDS)
 async def logoupdate(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True)
-    global logo_cache, cache_timestamp
-    logo_cache = await fetch_logos_from_github()
-    cache_timestamp = time.time()
-    
-    if logo_cache:
-        await interaction.followup.send(
-            f"Logo cache updated! Loaded {len(logo_cache)} logos.",
-            ephemeral=True
-        )
-    else:
-        await interaction.followup.send(
-            "Failed to refresh logo cache. If this error persists, please notify @greenspeedracer.",
-            ephemeral=True
-        )
+    try:
+        await interaction.response.defer(ephemeral=True)
+        global logo_cache, cache_timestamp
+        logo_cache = await fetch_logos_from_github()
+        cache_timestamp = time.time()
+
+        if logo_cache:
+            await interaction.followup.send(
+                f"Logo cache updated! Loaded {len(logo_cache)} logos.",
+                ephemeral=True
+            )
+        else:
+            await interaction.followup.send(
+                "Failed to refresh logo cache. If this error persists, please notify @greenspeedracer.",
+                ephemeral=True
+            )
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        try:
+            await interaction.followup.send(f"Error updating logo cache: {e}", ephemeral=True)
+        except Exception:
+            pass
 
 logo_cache = []
 cache_timestamp = 0
@@ -265,12 +272,14 @@ async def fetch_logos_from_github() -> List[dict]:
                 data = await response.json()
                 logos = [
                     {
-                        'name': item['path'].split('/')[-1].replace('.png', ''),
+                        'name': item['path'].split('/')[-1].replace('.png', '').replace('.gif', ''),
                         'path': item['path'],
                         'url': f"https://raw.githubusercontent.com/K-yzu/Logos/main/{quote(item['path'])}" 
                     }
                     for item in data.get('tree', [])
-                    if item['type'] == 'blob' and item['path'].lower().endswith('.png')
+                    if item['type'] == 'blob' and (
+                        item['path'].lower().endswith('.png') or item['path'].lower().endswith('.gif')
+                    )
                 ]
                 return logos
             return []
