@@ -30,12 +30,12 @@ ALL_GUILDS = [GSR_GUILD, EPGENIUS_GUILD]
 MODCHANNEL_ID = int(os.getenv("MODCHANNEL_ID"))
 MODCHANNEL = None
 MOD_MENTIONS = " ".join([f"<@&{role_id}>" for role_id in MOD_ROLE_IDS])
-REPO_URL = "http://repo-server.site"
+REPO_URL = "https://epgenius.org
 CHECK_INTERVAL = 60
 TIMEOUT = 30
 CACHED_PLAYLISTS = None
 PLAYLIST_CACHE_FILE = "playlists_cache.json"
-PLAYLIST_URL = "http://repo-server.site/playlists"
+PLAYLIST_URL = "https://epgenius.org/playlists"
 
 FILEID_PATTERN = re.compile(r"/file/d/([a-zA-Z0-9_-]+)")
 
