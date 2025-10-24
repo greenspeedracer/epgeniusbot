@@ -30,12 +30,12 @@ ALL_GUILDS = [GSR_GUILD, EPGENIUS_GUILD]
 MODCHANNEL_ID = int(os.getenv("MODCHANNEL_ID"))
 MODCHANNEL = None
 MOD_MENTIONS = " ".join([f"<@&{role_id}>" for role_id in MOD_ROLE_IDS])
-REPO_URL = "http://repo-server.site"
+REPO_URL = "https://epgenius.org"
 CHECK_INTERVAL = 60
 TIMEOUT = 30
 CACHED_PLAYLISTS = None
 PLAYLIST_CACHE_FILE = "playlists_cache.json"
-PLAYLIST_URL = "http://repo-server.site/playlists"
+PLAYLIST_URL = "https://epgenius.org/playlists"
 
 FILEID_PATTERN = re.compile(r"/file/d/([a-zA-Z0-9_-]+)")
 
@@ -209,21 +209,28 @@ async def serviceinfo(interaction: discord.Interaction):
 @app_commands.default_permissions(manage_messages=True)
 @app_commands.checks.has_any_role(*MOD_ROLE_IDS)
 async def logoupdate(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True)
-    global logo_cache, cache_timestamp
-    logo_cache = await fetch_logos_from_github()
-    cache_timestamp = time.time()
-    
-    if logo_cache:
-        await interaction.followup.send(
-            f"Logo cache updated! Loaded {len(logo_cache)} logos.",
-            ephemeral=True
-        )
-    else:
-        await interaction.followup.send(
-            "Failed to refresh logo cache. If this error persists, please notify @greenspeedracer.",
-            ephemeral=True
-        )
+    try:
+        await interaction.response.defer(ephemeral=True)
+        global logo_cache, cache_timestamp
+        logo_cache = await fetch_logos_from_github()
+        cache_timestamp = time.time()
+
+        if logo_cache:
+            await interaction.followup.send(
+                f"Logo cache updated! Loaded {len(logo_cache)} logos.",
+                ephemeral=True
+            )
+        else:
+            await interaction.followup.send(
+                "Failed to refresh logo cache. If this error persists, please notify @greenspeedracer.",
+                ephemeral=True
+            )
+    except Exception as e:
+        import traceback; traceback.print_exc()
+        try:
+            await interaction.followup.send(f"Error updating logo cache: {e}", ephemeral=True)
+        except Exception:
+            pass
 
 logo_cache = []
 cache_timestamp = 0
