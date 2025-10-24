@@ -145,14 +145,14 @@ class PlaylistPaginationView(View):
         
         return embed
     
-def update_buttons(self):
-    """Update button states based on current page"""
-    for item in self.children:
-        if isinstance(item, Button):
-            if "Previous" in item.label:
-                item.disabled = (self.current_page == 0)
-            elif "Next" in item.label:
-                item.disabled = (self.current_page == self.max_page)
+    def update_buttons(self):
+        """Update button states based on current page"""
+        for item in self.children:
+            if isinstance(item, Button):
+                if "Previous" in item.label:
+                    item.disabled = (self.current_page == 0)
+                elif "Next" in item.label:
+                    item.disabled = (self.current_page == self.max_page)
     
     @discord.ui.button(label="◀ Previous", style=discord.ButtonStyle.primary)
     async def previous_button(self, interaction: discord.Interaction, button: Button):
