@@ -1,4 +1,3 @@
-
 import discord
 from discord import app_commands, Permissions
 from discord.ext import commands, tasks
@@ -567,6 +566,118 @@ def handle_registration_response(result, playlists_data=None):
         return message, record
     
     return REGISTER_MESSAGES["PL_REG_ERROR_MSG"], None
+
+class ServiceInfoModal(Modal, title="Service Information"):  
+    dns = TextInput(
+        label="DNS/URL",
+        placeholder="http://example.com",
+        required=True,
+        max_length=200
+    )
+    
+    username = TextInput(
+        label="Username",
+        placeholder="Username",
+        required=True,
+        max_length=100
+    )
+    
+    password = TextInput(
+        label="Password",
+        placeholder="Password",
+        required=True,
+        max_length=100,
+        style=discord.TextStyle.short
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+
+        url = f"{self.dns.value}/player_api.php?username={self.username.value}&password={self.password.value}"
+
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+
+        try:
+            response = requests.get(url, headers=headers, timeout=10)
+
+            if response.status_code == 200:
+                data = response.json()
+
+                user_info = data.get('user_info', {})
+                server_info = data.get('server_info', {})
+
+                cred_embed = discord.Embed(
+                    title="🔐 Service Credentials",
+                    color=discord.Color.blue()
+                )
+                cred_text = f"**DNS/URL:** ||{server_info.get('url', 'N/A')}||\n"
+                cred_text += f"**Username:** ||{user_info.get('username', 'N/A')}||\n"
+                cred_text += f"**Password:** ||{user_info.get('password', 'N/A')}||"
+                cred_embed.description = cred_text
+
+                await interaction.followup.send(embed=cred_embed, ephemeral=True)
+
+                embed = discord.Embed(
+                    title="📊 Service Information",
+                    color=discord.Color.blue()
+                )
+
+                user_text = "__**👤 User Information**__\n\n"
+                if user_info.get('message'):
+                    user_text += f"**Message:** {user_info['message']}\n"
+                if user_info.get('auth') is not None:
+                    user_text += f"**Auth:** {'Yes' if user_info['auth'] == 1 else 'No'}\n"
+                if user_info.get('status'):
+                    user_text += f"**Status:** {user_info['status']}\n"
+                if user_info.get('exp_date'):
+                    exp_dt = datetime.fromtimestamp(int(user_info['exp_date']))
+                    user_text += f"**Expiration:** {exp_dt.strftime('%Y-%m-%d %H:%M:%S')}\n"
+                if user_info.get('is_trial') is not None:
+                    user_text += f"**Trial:** {'Yes' if user_info['is_trial'] == '1' else 'No'}\n"
+                if user_info.get('active_cons') is not None:
+                    user_text += f"**Active Connections:** {user_info['active_cons']}\n"
+                if user_info.get('created_at'):
+                    created_dt = datetime.fromtimestamp(int(user_info['created_at']))
+                    user_text += f"**Created:** {created_dt.strftime('%Y-%m-%d %H:%M:%S')}\n"
+                if user_info.get('max_connections'):
+                    user_text += f"**Max Connections:** {user_info['max_connections']}\n"
+                if user_info.get('allowed_output_formats'):
+                    formats = ', '.join(user_info['allowed_output_formats']) if isinstance(user_info['allowed_output_formats'], list) else user_info['allowed_output_formats']
+                    user_text += f"**Output Formats:** {formats}"
+
+                embed.add_field(name="\u200b", value=user_text, inline=False)
+
+                server_text = "__**🖥️ Server Information**__\n\n"
+                if server_info.get('port'):
+                    server_text += f"**Port:** {server_info['port']}\n"
+                if server_info.get('https_port'):
+                    server_text += f"**HTTPS Port:** {server_info['https_port']}\n"
+                if server_info.get('server_protocol'):
+                    server_text += f"**Protocol:** {server_info['server_protocol']}\n"
+                if server_info.get('rtmp_port'):
+                    server_text += f"**RTMP Port:** {server_info['rtmp_port']}\n"
+                if server_info.get('timezone'):
+                    server_text += f"**Timezone:** {server_info['timezone']}\n"
+                if server_info.get('time_now'):
+                    server_text += f"**Server Time:** {server_info['time_now']}"
+
+                embed.add_field(name="\u200b", value=server_text, inline=False)
+
+                await interaction.followup.send(embed=embed, ephemeral=True)
+
+            else:
+                await interaction.followup.send(
+                    "❌ Unable to retrieve service information. Please check your DNS and credentials and try again.",
+                    ephemeral=True
+                )
+
+        except Exception:
+            await interaction.followup.send(
+                "❌ Unable to retrieve service information. Please check your DNS and credentials and try again.",
+                ephemeral=True
+            )    
 
 @bot.tree.command(name="playlistregister", description="Register Your Playlists")
 @app_commands.describe(playlist="Enter your File ID or Google Drive Share/Export URL")
