@@ -117,10 +117,12 @@ class PlaylistPaginationView(View):
         self.is_mod = is_mod
         self.current_page = 0
         self.max_page = len(records) - 1
+        self.message = None
         
         if self.max_page == 0:
-            self.previous_button.disabled = True
-            self.next_button.disabled = True
+            for item in self.children:
+                if isinstance(item, Button):
+                    item.disabled = True
 
     async def on_timeout(self):
         """Called when the view times out"""
