@@ -2,7 +2,7 @@
 import discord
 from discord import app_commands, Permissions
 from discord.ext import commands, tasks
-from discord.ui import View, Select, Modal, TextInput
+from discord.ui import View, Select, Modal, TextInput, Button
 from discord.app_commands import MissingAnyRole
 import re
 import os
@@ -14,7 +14,7 @@ import time
 import requests
 from typing import List
 from urllib.parse import quote
-from datetime import datetime
+from datetime import datetime, timezone
 from thefuzz import fuzz, process
 from dotenv import load_dotenv
 
@@ -35,9 +35,49 @@ CHECK_INTERVAL = 60
 TIMEOUT = 30
 CACHED_PLAYLISTS = None
 PLAYLIST_CACHE_FILE = "playlists_cache.json"
-PLAYLIST_URL = "https://epgenius.org/playlists"
+PLAYLISTS_URL = "https://epgenius.org/playlists"
+BOT_API_TOKEN = os.getenv("BOT_API_TOKEN")
+GET_API_URL = os.getenv("GET_API_URL")
+POST_API_URL = os.getenv("POST_API_URL")
 
 FILEID_PATTERN = re.compile(r"/file/d/([a-zA-Z0-9_-]+)")
+FILEID_REGEX = re.compile(r"(?:/file/d/|id=)([a-zA-Z0-9_-]+)|^([a-zA-Z0-9_-]+)$")
+
+MESSAGES = {
+    "PL_OWNER_ERROR_MSG": "⚠️ There may be an issue with your playlist updates. If it has been more than 24 hours since setting up your playlist on https://epgenius.org, please open a File ID Support [#🎟️〢ticket](https://discord.com/channels/1382432361840509039/1400145242606534710).",
+    
+    "SUPPORTER_DONATION_MSG": "💝 Supporter updates are currently disabled. To enable supporter updates, please consider [making a donation to {pl_owner}]({donation_url}). After donating, please open an Unlock Supporters Features [#🎟️〢ticket](https://discord.com/channels/1382432361840509039/1400145242606534710) to activate supporter updates. If you've already donated and it's been over 24 hours since your ticket was closed, please open a new ticket.",
+    
+    "SUPPORTER_DONATION_ERROR_MSG": "⚠️ There may be an issue with your supporter updates. If it has been more than 24 hours since your Unlock Supporters Features ticket was closed, please open an Unlock Supporters Features [#🎟️〢ticket](https://discord.com/channels/1382432361840509039/1400145242606534710).",
+    
+    "SUPPORTER_THANK_MSG_GENERIC": "✨ Thank you for your donation! Your support helps keep EPGenius running.",
+    
+    "USER_LOOKUP_ERROR_MSG": "❌ No matching playlist(s) found. Please check your input and try again. If you still need help, please visit [#🚑〢help](https://discord.com/channels/1382432361840509039/1383563895913844786).",
+    
+    "USER_LOOKUP_TIMEOUT_MSG": "⏱️ The lookup failed. Please try again later. If this error persists, please notify a mod in [#🚑〢help](https://discord.com/channels/1382432361840509039/1383563895913844786).",
+}
+
+REGISTER_MESSAGES = {
+    "PL_REG_THANK_MSG": "✅ Thanks for registering your **{pl_owner}** **#{list_id}** **{provider}** playlist.",
+    
+    "CREDENTIALS_UPDATE_SUCCESS_MSG": "✅ Credentials for your **{pl_owner}** **#{list_id}** **{provider}** playlist have been updated. Changes will take place on the next automatic update.",
+    
+    "PL_REG_ERROR_MSG": "❌ The registration failed. Please try again later. If this error persists, please notify a mod in [#🚑〢help](https://discord.com/channels/1382432361840509039/1383563895913844786).",
+    
+    "PL_REG_DUP_MSG": "ℹ️ This playlist is already registered to you.",
+    
+    "PL_REG_MISMATCH_MSG": "⚠️ This playlist is already registered to another user. If you believe this is an error, please open a File ID Support [#🎟️〢ticket](https://discord.com/channels/1382432361840509039/1400145242606534710).",
+    
+    "PL_REG_MISSING_MSG": "❌ Playlist not found. Please check the File ID, Share URL, or Export URL and try again.",
+    
+    "INVALID_INPUT_MSG": "❌ Invalid input. Please provide a valid File ID, Share URL, or Export URL.",
+}
+
+playlist_cache = {
+    "data": None,
+    "timestamp": None,
+    "ttl": 300
+}
 
 intents = discord.Intents.default()
 intents.guilds = True
@@ -45,161 +85,584 @@ intents.message_content = True
 intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-def format_value(value):
-    if isinstance(value, int) and 1000000000 <= value <= 9999999999:
+async def get_all_user_playlists(duid):
+    """Fetch all playlists for a user by DUID"""
+    headers = {
+        "Authorization": BOT_API_TOKEN,
+        "Content-Type": "application/json"
+    }
+    
+    json_data = {
+        "duid": duid
+    }
+    
+    async with aiohttp.ClientSession() as session:
         try:
-            dt = datetime.fromtimestamp(value)
-            return f"{value} ({dt.strftime('%Y-%m-%d %H:%M:%S')})"
-        except:
-            return value
-    elif isinstance(value, str) and value.isdigit() and len(value) == 10:
-        try:
-            dt = datetime.fromtimestamp(int(value))
-            return f"{value} ({dt.strftime('%Y-%m-%d %H:%M:%S')})"
-        except:
-            return value
-    elif isinstance(value, list):
-        return ', '.join(str(v) for v in value)
-    elif isinstance(value, bool):
-        return 'Yes' if value else 'No'
-    elif value == 1:
-        return 'Yes'
-    elif value == 0:
-        return 'No'
-    return value
+            async with session.get(GET_API_URL, headers=headers, json=json_data) as response:
+                if response.status == 200:
+                    return await response.json()
+                else:
+                    text = await response.text()
+                    print(f"Error: {response.status} - {text}")
+                    return None
+        except Exception as e:
+            print(f"Request failed: {e}")
+            return None
 
-def format_dict_to_text(d, indent=0, header=None):
-    lines = []
-    
-    if header:
-        lines.append("=" * 40)
-        lines.append(header.upper())
-        lines.append("=" * 40)
-    
-    max_key_len = max(len(str(k)) for k in d.keys()) if d else 0
-    
-    for key, value in d.items():
-        formatted_key = str(key).replace('_', ' ').title()
+class PlaylistPaginationView(View):
+    def __init__(self, records, playlists_data, is_mod=False):
+        super().__init__(timeout=180)
+        self.records = records
+        self.playlists_data = playlists_data
+        self.is_mod = is_mod
+        self.current_page = 0
+        self.max_page = len(records) - 1
+        self.message = None
         
-        if isinstance(value, dict):
-            lines.extend(format_dict_to_text(value, indent + 2, formatted_key))
-        else:
-            formatted_value = format_value(value)
-            lines.append(f"{' ' * indent}{formatted_key}: {formatted_value}")
+        if self.max_page == 0:
+            for item in self.children:
+                if isinstance(item, Button):
+                    item.disabled = True
+
+    async def on_timeout(self):
+        """Called when the view times out"""
+        if self.message:
+            try:
+                await self.message.edit(view=None)
+            except:
+                pass  
     
-    return lines
-
-class ServiceInfoModal(Modal, title="Service Information"):  
-    dns = TextInput(
-        label="DNS/URL",
-        placeholder="http://example.com",
-        required=True,
-        max_length=200
-    )
+    def get_embed(self):
+        """Generate embed for current page"""
+        record = self.records[self.current_page]
+        list_id = record.get('list_id')
+        playlist_details = get_playlist_details(list_id, self.playlists_data)
+        
+        embed = create_file_info_embed(record, playlist_details, is_mod=self.is_mod)
+        
+        if self.max_page > 0:
+            embed.set_footer(text=f"Playlist {self.current_page + 1} of {self.max_page + 1}")
+        
+        return embed
     
-    username = TextInput(
-        label="Username",
-        placeholder="Username",
-        required=True,
-        max_length=100
-    )
+    def update_buttons(self):
+        """Update button states based on current page"""
+        for item in self.children:
+            if isinstance(item, Button):
+                if "Previous" in item.label:
+                    item.disabled = (self.current_page == 0)
+                elif "Next" in item.label:
+                    item.disabled = (self.current_page == self.max_page)
     
-    password = TextInput(
-        label="Password",
-        placeholder="Password",
-        required=True,
-        max_length=100,
-        style=discord.TextStyle.short
-    )
+    @discord.ui.button(label="◀ Previous", style=discord.ButtonStyle.primary)
+    async def previous_button(self, interaction: discord.Interaction, button: Button):
+        if self.current_page > 0:
+            self.current_page -= 1
+            self.update_buttons()
+            embed = self.get_embed()
+            await interaction.response.edit_message(embed=embed, view=self)
+    
+    @discord.ui.button(label="Next ▶", style=discord.ButtonStyle.primary)
+    async def next_button(self, interaction: discord.Interaction, button: Button):
+        if self.current_page < self.max_page:
+            self.current_page += 1
+            self.update_buttons()
+            embed = self.get_embed()
+            await interaction.response.edit_message(embed=embed, view=self)
 
-    async def on_submit(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
 
-        url = f"{self.dns.value}/player_api.php?username={self.username.value}&password={self.password.value}"
-
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-        }
-
+async def fetch_playlists_data():
+    """Fetch and cache playlist data from EPGenius API"""
+    now = datetime.now(timezone.utc)
+    
+    if (playlist_cache["data"] is not None and 
+        playlist_cache["timestamp"] is not None and 
+        (now - playlist_cache["timestamp"]).total_seconds() < playlist_cache["ttl"]):
+        return playlist_cache["data"]
+    
+    async with aiohttp.ClientSession() as session:
         try:
-            response = requests.get(url, headers=headers, timeout=10)
+            async with session.get(PLAYLISTS_URL) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    playlist_cache["data"] = data
+                    playlist_cache["timestamp"] = now
+                    return data
+                else:
+                    print(f"Failed to fetch playlists: {response.status}")
+                    return None
+        except Exception as e:
+            print(f"Error fetching playlists: {e}")
+            return None
 
-            if response.status_code == 200:
-                data = response.json()
+def get_playlist_details(list_id, playlists_data):
+    """Get additional playlist details from EPGenius playlists API"""
+    if not playlists_data:
+        return None
+    
+    for playlist in playlists_data:
+        if playlist.get('id') == list_id:
+            return {
+                'provider': playlist.get('service_name'),
+                'pl_owner': playlist.get('reddit_user'),
+                'epg_url': playlist.get('github_epg_url'),
+                'donation_url': playlist.get('donation_info'),
+                'pl_owner_last_update': playlist.get('timestamp'),
+                'thank_message': playlist.get('thank_message')
+            }
+    return None
 
-                user_info = data.get('user_info', {})
-                server_info = data.get('server_info', {})
+def build_export_url(drive_file_id):
+    """Build Google Drive export URL from file ID"""
+    return f"https://drive.google.com/uc?export=download&id={drive_file_id}"
 
-                cred_embed = discord.Embed(
-                    title="🔐 Service Credentials",
-                    color=discord.Color.blue()
-                )
-                cred_text = f"**DNS/URL:** ||{server_info.get('url', 'N/A')}||\n"
-                cred_text += f"**Username:** ||{user_info.get('username', 'N/A')}||\n"
-                cred_text += f"**Password:** ||{user_info.get('password', 'N/A')}||"
-                cred_embed.description = cred_text
+def parse_timestamp(timestamp_str):
+    """Convert timestamp string to datetime object"""
+    if not timestamp_str or timestamp_str == "NULL":
+        return None
+    
+    formats = [
+        '%a, %d %b %Y %H:%M:%S %Z',  
+        '%d/%m/%Y',                   
+        '%Y-%m-%dT%H:%M:%S.%fZ',    
+        '%Y-%m-%dT%H:%M:%SZ',      
+        '%Y-%m-%d %H:%M:%S',        
+    ]
+    
+    for fmt in formats:
+        try:
+            dt = datetime.strptime(timestamp_str, fmt)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
+        except ValueError:
+            continue
+    
+    print(f"Error parsing timestamp '{timestamp_str}': no matching format found")
+    return None
 
-                await interaction.followup.send(embed=cred_embed, ephemeral=True)
+def format_datetime(dt):
+    """Format datetime to human-readable string"""
+    if not dt:
+        return None
+    return dt.strftime("%b %d, %Y at %I:%M %p %Z")
 
-                embed = discord.Embed(
-                    title="📊 Service Information",
-                    color=discord.Color.blue()
-                )
+def check_timestamp_age(timestamp_str, hours_threshold):
+    """Check if timestamp is older than threshold in hours"""
+    dt = parse_timestamp(timestamp_str)
+    if not dt:
+        return None
+    
+    now = datetime.now(timezone.utc)
+    age_hours = (now - dt).total_seconds() / 3600
+    return age_hours > hours_threshold
 
-                user_text = "__**👤 User Information**__\n\n"
-                if user_info.get('message'):
-                    user_text += f"**Message:** {user_info['message']}\n"
-                if user_info.get('auth') is not None:
-                    user_text += f"**Auth:** {'Yes' if user_info['auth'] == 1 else 'No'}\n"
-                if user_info.get('status'):
-                    user_text += f"**Status:** {user_info['status']}\n"
-                if user_info.get('exp_date'):
-                    exp_dt = datetime.fromtimestamp(int(user_info['exp_date']))
-                    user_text += f"**Expiration:** {exp_dt.strftime('%Y-%m-%d %H:%M:%S')}\n"
-                if user_info.get('is_trial') is not None:
-                    user_text += f"**Trial:** {'Yes' if user_info['is_trial'] == '1' else 'No'}\n"
-                if user_info.get('active_cons') is not None:
-                    user_text += f"**Active Connections:** {user_info['active_cons']}\n"
-                if user_info.get('created_at'):
-                    created_dt = datetime.fromtimestamp(int(user_info['created_at']))
-                    user_text += f"**Created:** {created_dt.strftime('%Y-%m-%d %H:%M:%S')}\n"
-                if user_info.get('max_connections'):
-                    user_text += f"**Max Connections:** {user_info['max_connections']}\n"
-                if user_info.get('allowed_output_formats'):
-                    formats = ', '.join(user_info['allowed_output_formats']) if isinstance(user_info['allowed_output_formats'], list) else user_info['allowed_output_formats']
-                    user_text += f"**Output Formats:** {formats}"
+async def get_file_info_async(file_identifier, duid):
+    """Fetch file info from API"""
+    match = FILEID_REGEX.search(file_identifier)
+    if not match:
+        return None
+    
+    file_id = match.group(1) or match.group(2)
+    if not file_id:
+        return None
+    
+    headers = {
+        "Authorization": BOT_API_TOKEN,
+        "Content-Type": "application/json"
+    }
+    
+    json_data = {
+        "file_id": file_id,
+        "duid": duid
+    }
+    
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.get(GET_API_URL, headers=headers, json=json_data) as response:
+                if response.status == 200:
+                    return await response.json()
+                else:
+                    text = await response.text()
+                    print(f"Error: {response.status} - {text}")
+                    return None
+        except Exception as e:
+            print(f"Request failed: {e}")
+            return None
 
-                embed.add_field(name="\u200b", value=user_text, inline=False)
-
-                server_text = "__**🖥️ Server Information**__\n\n"
-                if server_info.get('port'):
-                    server_text += f"**Port:** {server_info['port']}\n"
-                if server_info.get('https_port'):
-                    server_text += f"**HTTPS Port:** {server_info['https_port']}\n"
-                if server_info.get('server_protocol'):
-                    server_text += f"**Protocol:** {server_info['server_protocol']}\n"
-                if server_info.get('rtmp_port'):
-                    server_text += f"**RTMP Port:** {server_info['rtmp_port']}\n"
-                if server_info.get('timezone'):
-                    server_text += f"**Timezone:** {server_info['timezone']}\n"
-                if server_info.get('time_now'):
-                    server_text += f"**Server Time:** {server_info['time_now']}"
-
-                embed.add_field(name="\u200b", value=server_text, inline=False)
-
-                await interaction.followup.send(embed=embed, ephemeral=True)
-
-            else:
-                await interaction.followup.send(
-                    "❌ Unable to retrieve service information. Please check your DNS and credentials and try again.",
-                    ephemeral=True
-                )
-
-        except Exception:
-            await interaction.followup.send(
-                "❌ Unable to retrieve service information. Please check your DNS and credentials and try again.",
-                ephemeral=True
+def create_file_info_embed(record, playlist_details, is_mod=False):
+    """Create Discord embed for file info display"""
+    embed = discord.Embed(
+        title="📁 Playlist Information",
+        color=discord.Color.blue()
+    )
+    
+    if is_mod:
+        embed.add_field(
+            name="Playlist Key",
+            value=f"`{record.get('id')}`",
+            inline=True
+        )
+    
+    embed.add_field(
+        name="Playlist Number",
+        value=f"`{record.get('list_id')}`",
+        inline=True
+    )
+    
+    if playlist_details:
+        embed.add_field(
+            name="Service Provider",
+            value=playlist_details['provider'] or "N/A",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="Playlist Owner",
+            value=playlist_details['pl_owner'] or "N/A",
+            inline=True
+        )
+        
+        export_url = build_export_url(record.get('drive_file_id'))
+        embed.add_field(
+            name="Playlist Link",
+            value=f"[Download]({export_url})",
+            inline=True
+        )
+        
+        if playlist_details['epg_url']:
+            embed.add_field(
+                name="EPG Link",
+                value=f"[View EPG]({playlist_details['epg_url']})",
+                inline=True
             )
+    else:
+        export_url = build_export_url(record.get('drive_file_id'))
+        embed.add_field(
+            name="Playlist Link",
+            value=f"[Download]({export_url})",
+            inline=True
+        )
+    
+    if is_mod:
+        discord_id = record.get('discord_id')
+        embed.add_field(
+            name="Discord User ID",
+            value=f"`{discord_id}`",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="File Owner",
+            value=record.get('file_owner') or "N/A",
+            inline=True
+        )
+    
+    pl_owner_name = playlist_details.get('pl_owner') if playlist_details else None
+    pl_owner_last_update_str = playlist_details.get('pl_owner_last_update') if playlist_details else None
+    
+    if pl_owner_name and pl_owner_last_update_str:
+        pl_owner_dt = parse_timestamp(pl_owner_last_update_str)
+        if pl_owner_dt:
+            formatted = format_datetime(pl_owner_dt)
+            if formatted:
+                embed.add_field(
+                    name=f"Last {pl_owner_name} Update",
+                    value=formatted,
+                    inline=True
+                )
+    
+    uploaded_dt = parse_timestamp(record.get('uploaded_at'))
+    if uploaded_dt:
+        formatted = format_datetime(uploaded_dt)
+        if formatted:
+            embed.add_field(
+                name="Playlist Creation Date",
+                value=formatted,
+                inline=True
+            )
+    
+    info_messages = []
+    
+    valid = record.get('valid')
+    if valid:
+        embed.add_field(
+            name="Playlist Owner Updates",
+            value="✅ Enabled",
+            inline=False
+        )
+    else:
+        embed.add_field(
+            name="Playlist Owner Updates",
+            value="❌ Disabled",
+            inline=False
+        )
+        info_messages.append(MESSAGES["PL_OWNER_ERROR_MSG"])
+    
+    auto_update = record.get('auto_update')
+    if auto_update:
+        embed.add_field(
+            name="Supporter Updates",
+            value="✅ Enabled",
+            inline=False
+        )
+        thank_msg = playlist_details.get('thank_message') if playlist_details else None
+        if thank_msg:
+            info_messages.append(thank_msg)
+        else:
+            info_messages.append(MESSAGES["SUPPORTER_THANK_MSG_GENERIC"])
+    else:
+        embed.add_field(
+            name="Supporter Updates",
+            value="❌ Disabled",
+            inline=False
+        )
+        donation_url = playlist_details.get('donation_url') if playlist_details else None
+        pl_owner = playlist_details.get('pl_owner') if playlist_details else None
+        if donation_url:
+            donation_msg = MESSAGES["SUPPORTER_DONATION_MSG"].format(
+                donation_url=donation_url,
+                pl_owner=pl_owner or "the playlist owner"
+            )
+            info_messages.append(donation_msg)
+        else:
+            info_messages.append("💝 Supporter updates are currently disabled. Please check back later or contact a mod.")
+    
+    last_update_owner = record.get('last_update_owner')
+    pl_owner_last_update_str = playlist_details.get('pl_owner_last_update') if playlist_details else None
+    
+    show_owner_update_datetime = True
+    
+    if not last_update_owner or last_update_owner == "NULL":
+        if not valid:
+            show_owner_update_datetime = False
+        else:
+            info_messages.append(MESSAGES["PL_OWNER_ERROR_MSG"])
+            show_owner_update_datetime = False
+    else:
+        if pl_owner_last_update_str:
+            owner_update_dt = parse_timestamp(last_update_owner)
+            pl_owner_update_dt = parse_timestamp(pl_owner_last_update_str)
+            
+            if owner_update_dt and pl_owner_update_dt:
+                hours_behind = (pl_owner_update_dt - owner_update_dt).total_seconds() / 3600
+                if hours_behind > 4:
+                    info_messages.append(MESSAGES["PL_OWNER_ERROR_MSG"])
+    
+    if show_owner_update_datetime and last_update_owner and last_update_owner != "NULL":
+        owner_dt = parse_timestamp(last_update_owner)
+        if owner_dt:
+            formatted = format_datetime(owner_dt)
+            if formatted:
+                embed.add_field(
+                    name="Last Playlist Owner Update",
+                    value=formatted,
+                    inline=True
+                )
+    
+    last_update_provider = record.get('last_update_provider')
+    
+    show_supporter_update_datetime = True
+    
+    if not last_update_provider or last_update_provider == "NULL":
+        if not auto_update:
+            show_supporter_update_datetime = False
+        else:
+            info_messages.append(MESSAGES["SUPPORTER_DONATION_ERROR_MSG"])
+            show_supporter_update_datetime = False
+    else:
+        is_old = check_timestamp_age(last_update_provider, 36)
+        if is_old:
+            info_messages.append(MESSAGES["SUPPORTER_DONATION_ERROR_MSG"])
+    
+    if show_supporter_update_datetime and last_update_provider and last_update_provider != "NULL":
+        provider_dt = parse_timestamp(last_update_provider)
+        if provider_dt:
+            formatted = format_datetime(provider_dt)
+            if formatted:
+                embed.add_field(
+                    name="Last Supporter Update",
+                    value=formatted,
+                    inline=True
+                )
+    
+    if info_messages:
+        embed.description = "\n\n".join(info_messages)
+    
+    return embed
+
+async def register_file_async(file_identifier, duid):
+    """Register a file with the API"""
+    match = FILEID_REGEX.search(file_identifier)
+    if not match:
+        return {"error": "invalid_input"}
+    
+    file_id = match.group(1) or match.group(2)
+    if not file_id:
+        return {"error": "invalid_input"}
+    
+    headers = {
+        "Authorization": BOT_API_TOKEN,
+        "Content-Type": "application/json"
+    }
+    
+    data = {
+        "file_id": file_id,
+        "duid": duid
+    }
+    
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.post(POST_API_URL, headers=headers, json=data) as response:
+                if response.status == 200:
+                    return await response.json()
+                else:
+                    return {
+                        "error": "api_error",
+                        "status": response.status,
+                        "message": await response.text()
+                    }
+        except Exception as e:
+            return {"error": "request_failed", "exception": str(e)}
+
+
+def handle_registration_response(result, playlists_data=None):
+    """Process registration API response and return appropriate message"""
+    if not result:
+        return REGISTER_MESSAGES["PL_REG_ERROR_MSG"], None
+    
+    if "error" in result:
+        error_type = result.get("error")
+        if error_type == "invalid_input":
+            return REGISTER_MESSAGES["INVALID_INPUT_MSG"], None
+        elif error_type in ("api_error", "request_failed"):
+            return REGISTER_MESSAGES["PL_REG_ERROR_MSG"], None
+    
+    status = result.get("status")
+    
+    if status == "duplicate":
+        return REGISTER_MESSAGES["PL_REG_DUP_MSG"], None
+    if status == "mismatch":
+        return REGISTER_MESSAGES["PL_REG_MISMATCH_MSG"], None
+    if status == "not_found":
+        return REGISTER_MESSAGES["PL_REG_MISSING_MSG"], None
+    
+    if status == "ok":
+        record = result.get("file")
+        
+        if not record:
+            return "✅ Registration successful! Your playlist has been registered.", None
+        
+        list_id = record.get("list_id")
+        provider = "N/A"
+        pl_owner = "N/A"
+        
+        if playlists_data and list_id:
+            for playlist in playlists_data:
+                if playlist.get("id") == list_id:
+                    provider = playlist.get("service_name", "N/A")
+                    pl_owner = playlist.get("reddit_user", "N/A")
+                    break
+        
+        message = REGISTER_MESSAGES["PL_REG_THANK_MSG"].format(
+            pl_owner=pl_owner,
+            list_id=list_id,
+            provider=provider
+        )
+        return message, record
+    
+    return REGISTER_MESSAGES["PL_REG_ERROR_MSG"], None
+
+@bot.tree.command(name="playlistregister", description="Register Your Playlists")
+@app_commands.describe(playlist="Enter your File ID or Google Drive Share/Export URL")
+async def playlistregister(interaction: discord.Interaction, playlist: str):
+    await interaction.response.defer(ephemeral=True)
+    
+    duid = str(interaction.user.id)
+    
+    result = await register_file_async(playlist, duid)
+    
+    playlists_data = await fetch_playlists_data()
+    
+    message, record = handle_registration_response(result, playlists_data)
+    
+    await interaction.followup.send(message, ephemeral=True)  
+
+@bot.tree.command(name="playlistinfo", description="View All Your Registered Playlists")
+async def playlistinfo(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    
+    duid = str(interaction.user.id)
+    
+    result = await get_all_user_playlists(duid)
+    
+    if not result:
+        await interaction.followup.send(
+            MESSAGES["USER_LOOKUP_TIMEOUT_MSG"],
+            ephemeral=True
+        )
+        return
+    
+    if not isinstance(result, list):
+        await interaction.followup.send(
+            MESSAGES["USER_LOOKUP_ERROR_MSG"],
+            ephemeral=True
+        )
+        return
+    
+    if len(result) == 0:
+        await interaction.followup.send(
+            MESSAGES["USER_LOOKUP_ERROR_MSG"],
+            ephemeral=True
+        )
+        return
+    
+    playlists_data = await fetch_playlists_data()
+    
+    view = PlaylistPaginationView(result, playlists_data, is_mod=False)
+    embed = view.get_embed()
+    
+    message = await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+    view.message = message
+
+@bot.tree.command(name="playlistinfoid", description="View Specific Playlist by File ID/Playlist URL")
+@app_commands.default_permissions(manage_messages=True)
+@app_commands.checks.has_any_role(*MOD_ROLE_IDS)
+@app_commands.describe(playlist="Enter your File ID or Google Drive Share/Export URL")
+async def playlistinfoid(interaction: discord.Interaction, playlist: str):
+    await interaction.response.defer(ephemeral=True)
+    
+    duid = str(interaction.user.id)
+    
+    result = await get_file_info_async(playlist, duid)
+    
+    if not result:
+        await interaction.followup.send(
+            MESSAGES["USER_LOOKUP_ERROR_MSG"],
+            ephemeral=True
+        )
+        return
+    
+    if result.get('status') != 'ok':
+        await interaction.followup.send(
+            MESSAGES["USER_LOOKUP_TIMEOUT_MSG"],
+            ephemeral=True
+        )
+        return
+    
+    record = result.get('file')
+    if not record:
+        await interaction.followup.send(
+            MESSAGES["USER_LOOKUP_ERROR_MSG"],
+            ephemeral=True
+        )
+        return
+    
+    playlists_data = await fetch_playlists_data()
+    playlist_details = get_playlist_details(record.get('list_id'), playlists_data)
+    
+    embed = create_file_info_embed(record, playlist_details, is_mod=False)
+    await interaction.followup.send(embed=embed, ephemeral=True)
 
 @bot.tree.command(name="serviceinfo", description="Get Service Information")
 async def serviceinfo(interaction: discord.Interaction):
@@ -428,7 +891,7 @@ async def fetch_playlists():
     try:
         timeout_config = aiohttp.ClientTimeout(total=10)
         async with aiohttp.ClientSession(timeout=timeout_config) as session:
-            async with session.get(PLAYLIST_URL) as response:
+            async with session.get(PLAYLISTS_URL) as response:
                 if response.status == 200:
                     data = await response.json()
                     playlists = []
@@ -505,13 +968,6 @@ async def get_playlists():
     print("ERROR: No playlist data available (live fetch failed and no cache exists)")
     return None
 
-
-# For sending alerts
-# await MODCHANNEL.send(f"{MOD_MENTIONS} Something needs attention!")
-
-# Or in an interaction response
-# await interaction.response.send_message(f"{MOD_MENTIONS} Alert sent!")
-
 @bot.tree.command(name="playlist", description="Convert Google Drive Playlist Share Link into Playlist Export Link")
 @app_commands.describe(url="Google Drive Playlist Share Link")
 async def gdrive(interaction: discord.Interaction, url: str):
@@ -530,7 +986,7 @@ async def gdrive(interaction: discord.Interaction, url: str):
 @app_commands.default_permissions(manage_messages=True) 
 @app_commands.checks.has_any_role(*MOD_ROLE_IDS)
 async def killepgbot(interaction: discord.Interaction):
-    await interaction.response.send_message("Killing EPGeniusBot", ephemeral=True)
+    await interaction.response.send_message("Killing EPGeniusBot")
     await bot.close()
 
 @bot.tree.error
@@ -538,7 +994,6 @@ async def on_app_command_error(interaction, error):
     if isinstance(error, MissingAnyRole):
         await interaction.response.send_message(
             "You don't have the required role(s) to run this command.",
-            ephemeral=True
         )
     else:
         print(f"Unhandled error: {error}")

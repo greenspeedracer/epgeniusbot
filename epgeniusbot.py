@@ -118,11 +118,6 @@ class PlaylistPaginationView(View):
         self.current_page = 0
         self.max_page = len(records) - 1
         self.message = None
-        
-        if self.max_page == 0:
-            for item in self.children:
-                if isinstance(item, Button):
-                    item.disabled = True
 
     async def on_timeout(self):
         """Called when the view times out"""
@@ -593,7 +588,6 @@ async def playlistinfo(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
     
     duid = str(interaction.user.id)
-    
     result = await get_all_user_playlists(duid)
     
     if not result:
@@ -603,14 +597,7 @@ async def playlistinfo(interaction: discord.Interaction):
         )
         return
     
-    if not isinstance(result, list):
-        await interaction.followup.send(
-            MESSAGES["USER_LOOKUP_ERROR_MSG"],
-            ephemeral=True
-        )
-        return
-    
-    if len(result) == 0:
+    if not isinstance(result, list) or len(result) == 0:
         await interaction.followup.send(
             MESSAGES["USER_LOOKUP_ERROR_MSG"],
             ephemeral=True
@@ -619,11 +606,17 @@ async def playlistinfo(interaction: discord.Interaction):
     
     playlists_data = await fetch_playlists_data()
     
-    view = PlaylistPaginationView(result, playlists_data, is_mod=False)
-    embed = view.get_embed()
-    
-    message = await interaction.followup.send(embed=embed, view=view, ephemeral=True)
-    view.message = message
+    if len(result) == 1:
+        record = result[0]
+        list_id = record.get('list_id')
+        playlist_details = get_playlist_details(list_id, playlists_data)
+        embed = create_file_info_embed(record, playlist_details, is_mod=False)
+        await interaction.followup.send(embed=embed, ephemeral=True)
+    else:
+        view = PlaylistPaginationView(result, playlists_data, is_mod=False)
+        embed = view.get_embed()
+        message = await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+        view.message = message
 
 @bot.tree.command(name="playlistinfoid", description="View Specific Playlist by File ID/Playlist URL")
 @app_commands.default_permissions(manage_messages=True)
