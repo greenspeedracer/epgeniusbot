@@ -28,13 +28,20 @@ if ! tmux has-session -t epgeniusbot 2>/dev/null; then
     tmux new-session -d -s epgeniusbot
 fi
 
+tmux send-keys -t epgeniusbot C-l
+tmux clear-history -t epgeniusbot
+
 tmux send-keys -t epgeniusbot "cd /home/ubuntu/epgeniusbot && python3 /home/ubuntu/epgeniusbot/epgeniusbot.py" Enter
+
+sleep 2
 
 TIMEOUT=30
 ELAPSED=0
 
 while [ $ELAPSED -lt $TIMEOUT ]; do
-    if tmux capture-pane -t epgeniusbot -p | grep -q "epgeniusbot#3611 is fully ready!"; then
+    RECENT_OUTPUT=$(tmux capture-pane -t epgeniusbot -p -S -50)
+    
+    if echo "$RECENT_OUTPUT" | grep -q "epgeniusbot#3611 is fully ready"; then
         echo "epgeniusbot has started"
         exit 0
     fi
