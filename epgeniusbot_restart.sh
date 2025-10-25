@@ -1,10 +1,6 @@
 #!/bin/bash
 
-exec 1> >(stdbuf -o0 cat)
-
 if pgrep -f "epgeniusbot.py" > /dev/null; then
-    echo "killing epgeniusbot"
-    
     tmux send-keys -t epgeniusbot C-c
     
     STOP_TIMEOUT=10
@@ -22,8 +18,8 @@ if pgrep -f "epgeniusbot.py" > /dev/null; then
         echo "failed to kill epgeniusbot"
         exit 1
     fi
-else
-    echo "epgeniusbot already killed. starting epgeniusbot"
+    
+    sleep 1
 fi
 
 if ! tmux has-session -t epgeniusbot 2>/dev/null; then
@@ -37,19 +33,19 @@ tmux send-keys -t epgeniusbot "cd /home/ubuntu/epgeniusbot && python3 /home/ubun
 
 sleep 2
 
-TIMEOUT=60
+TIMEOUT=30
 ELAPSED=0
 
 while [ $ELAPSED -lt $TIMEOUT ]; do
     RECENT_OUTPUT=$(tmux capture-pane -t epgeniusbot -p -S -50)
     
     if echo "$RECENT_OUTPUT" | grep -q "epgeniusbot#3611 is fully ready"; then
-        echo "epgeniusbot has started"
+        echo "epgeniusbot has restarted"
         exit 0
     fi
     
     if ! pgrep -f "epgeniusbot.py" > /dev/null; then
-        echo "epgeniusbot failed to start (process died)"
+        echo "epgeniusbot failed to restart (process died)"
         exit 1
     fi
     
