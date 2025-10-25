@@ -1,5 +1,7 @@
 #!/bin/bash
 
+exec 1> >(stdbuf -o0 cat)
+
 if pgrep -f "epgeniusbot.py" > /dev/null; then
     echo "killing epgeniusbot"
     
