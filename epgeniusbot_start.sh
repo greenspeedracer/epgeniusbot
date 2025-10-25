@@ -18,7 +18,7 @@ tmux send-keys -t epgeniusbot "cd /home/ubuntu/epgeniusbot && python3 /home/ubun
 
 sleep 2
 
-TIMEOUT=30
+TIMEOUT=60
 ELAPSED=0
 
 while [ $ELAPSED -lt $TIMEOUT ]; do
