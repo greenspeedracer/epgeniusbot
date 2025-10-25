@@ -1,6 +1,5 @@
 from flask import Flask, jsonify, request
 import subprocess
-import secrets
 import os
 from dotenv import load_dotenv
 
@@ -27,15 +26,25 @@ def run_script(script_name):
             text=True,
             timeout=60
         )
-        return {
-            'success': result.returncode == 0,
-            'output': result.stdout,
-            'error': result.stderr
+        
+        output = result.stdout.strip()  # Remove trailing newlines
+        success = result.returncode == 0
+        
+        # Only include error if there actually is one
+        response = {
+            'success': success,
+            'message': output if output else None
         }
+        
+        if result.stderr and result.stderr.strip():
+            response['error'] = result.stderr.strip()
+            
+        return response
+        
     except subprocess.TimeoutExpired:
-        return {'success': False, 'output': '', 'error': 'Script timeout'}
+        return {'success': False, 'error': 'Script timeout'}
     except Exception as e:
-        return {'success': False, 'output': '', 'error': str(e)}
+        return {'success': False, 'error': str(e)}
 
 @app.route('/status', methods=['GET'])
 def status():
