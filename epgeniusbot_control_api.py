@@ -27,10 +27,9 @@ def run_script(script_name):
             timeout=60
         )
         
-        output = result.stdout.strip()  # Remove trailing newlines
+        output = result.stdout.strip() 
         success = result.returncode == 0
         
-        # Only include error if there actually is one
         response = {
             'success': success,
             'message': output if output else None

@@ -1,3 +1,4 @@
+
 import discord
 from discord import app_commands, Permissions
 from discord.ext import commands, tasks
@@ -28,8 +29,13 @@ EPGENIUS_GUILD = discord.Object(id=int(os.getenv("EPGENIUS_GUILD_ID")))
 ALL_GUILDS = [GSR_GUILD, EPGENIUS_GUILD]
 MODCHANNEL_ID = int(os.getenv("MODCHANNEL_ID"))
 MODCHANNEL = None
+SC_UPDATES_CHANNEL = None
 MOD_MENTIONS = " ".join([f"<@&{role_id}>" for role_id in MOD_ROLE_IDS])
+SC_UPDATES_CHANNEL_ID = int(os.getenv("SC_UPDATES_CHANNEL_ID"))
+GSR_ID = int(os.getenv("GSR_ID", ""))
+GSR_MENTION = f"<@&{GSR_ID}>"
 REPO_URL = "https://epgenius.org"
+SC_URL = "https://streamcheck.pro"
 CHECK_INTERVAL = 60
 TIMEOUT = 30
 CACHED_PLAYLISTS = None
@@ -677,7 +683,7 @@ class ServiceInfoModal(Modal, title="Service Information"):
             await interaction.followup.send(
                 "❌ Unable to retrieve service information. Please check your DNS and credentials and try again.",
                 ephemeral=True
-            )    
+            )        
 
 @bot.tree.command(name="playlistregister", description="Register Your Playlists")
 @app_commands.describe(playlist="Enter your File ID or Google Drive Share/Export URL")
@@ -730,8 +736,6 @@ async def playlistinfo(interaction: discord.Interaction):
         view.message = message
 
 @bot.tree.command(name="playlistinfoid", description="View Specific Playlist by File ID/Playlist URL")
-@app_commands.default_permissions(manage_messages=True)
-@app_commands.checks.has_any_role(*MOD_ROLE_IDS)
 @app_commands.describe(playlist="Enter your File ID or Google Drive Share/Export URL")
 async def playlistinfoid(interaction: discord.Interaction, playlist: str):
     await interaction.response.defer(ephemeral=True)
@@ -1228,6 +1232,64 @@ async def epglookup(interaction: discord.Interaction, query: str):
                 )
         await interaction.followup.send(embed=embed, ephemeral=True)
 
+bot.last_sc_status = None
+
+@tasks.loop(seconds=CHECK_INTERVAL)
+async def check_sc_status():
+    status_code, error_type, error_msg = await check_site_status(SC_URL, TIMEOUT)
+    current_status = "UP" if status_code == 200 else "DOWN"
+    
+    if current_status != bot.last_sc_status:
+        if current_status == "DOWN":
+            await send_sc_alert(status_code, error_type, error_msg)
+        elif bot.last_sc_status is not None:
+            await send_sc_recovery_alert()
+        
+        bot.last_sc_status = current_status
+
+@check_sc_status.before_loop
+async def before_check_sc_status():
+    await bot.wait_until_ready()
+
+async def send_sc_alert(status_code, error_type, error_msg):
+    if SC_UPDATES_CHANNEL is None:
+        print(f"SC_UPDATES_CHANNEL not initialized")
+        return
+    
+    if status_code == 0:
+        status_display = "N/A (Connection Failed)"
+        main_error = error_type.replace('_', ' ').title()
+        details = error_msg
+    else:
+        status_display = str(status_code)
+        main_error = f"HTTP {status_code}"
+        details = None if error_type == f"HTTP_{status_code}" else error_msg
+
+    embed = discord.Embed(
+        title="🚨 StreamCheck Server Down Alert",
+        description=f"{SC_URL}",
+        color=discord.Color.red()
+    )
+    embed.add_field(name="Status Code", value=status_display, inline=True)
+    embed.add_field(name="Error", value=main_error, inline=True)
+    if details:
+        embed.add_field(name="Details", value=details, inline=False)
+
+    await SC_UPDATES_CHANNEL.send(content=GSR_MENTION, embed=embed)
+
+async def send_sc_recovery_alert():
+    if SC_UPDATES_CHANNEL is None:
+        return
+    
+    embed = discord.Embed(
+        title="✅ StreamCheck Server Recovered",
+        description=f"StreamCheck server {SC_URL} is back online",
+        color=discord.Color.green()
+    )
+    embed.add_field(name="Status", value="200 OK", inline=False)
+    
+    await SC_UPDATES_CHANNEL.send(content=GSR_MENTION, embed=embed)        
+
 @bot.event
 async def on_ready():
     print(f"{bot.user} is online!")
@@ -1245,6 +1307,17 @@ async def on_ready():
     if not check_repo_status.is_running():
         check_repo_status.start()
         print(f"EPGenius server status monitoring started for {REPO_URL}")
+
+    global SC_UPDATES_CHANNEL
+    SC_UPDATES_CHANNEL = bot.get_channel(SC_UPDATES_CHANNEL_ID)
+    if SC_UPDATES_CHANNEL:
+        print(f"StreamCheck Updates channel found: {SC_UPDATES_CHANNEL.name}")
+    else:
+        print(f"Warning: Could not find StreamCheck Updates channel with ID {SC_UPDATES_CHANNEL_ID}")
+    
+    if not check_sc_status.is_running():
+        check_sc_status.start()
+        print(f"StreamCheck server status monitoring started for {SC_URL}")
 
     logos = await get_logo_list()
     if logos:

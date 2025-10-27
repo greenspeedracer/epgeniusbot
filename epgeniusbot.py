@@ -14,7 +14,7 @@ import time
 import requests
 from typing import List
 from urllib.parse import quote
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from thefuzz import fuzz, process
 from dotenv import load_dotenv
 
@@ -33,7 +33,7 @@ SC_UPDATES_CHANNEL = None
 MOD_MENTIONS = " ".join([f"<@&{role_id}>" for role_id in MOD_ROLE_IDS])
 SC_UPDATES_CHANNEL_ID = int(os.getenv("SC_UPDATES_CHANNEL_ID"))
 GSR_ID = int(os.getenv("GSR_ID", ""))
-GSR_MENTION = f"<@&{GSR_ID}>"
+GSR_MENTION = f"<@{GSR_ID}>"
 REPO_URL = "https://epgenius.org"
 SC_URL = "https://streamcheck.pro"
 CHECK_INTERVAL = 60
@@ -49,13 +49,23 @@ FILEID_PATTERN = re.compile(r"/file/d/([a-zA-Z0-9_-]+)")
 FILEID_REGEX = re.compile(r"(?:/file/d/|id=)([a-zA-Z0-9_-]+)|^([a-zA-Z0-9_-]+)$")
 
 MESSAGES = {
-    "PL_OWNER_ERROR_MSG": "⚠️ There may be an issue with your playlist updates. If it has been more than 24 hours since setting up your playlist on https://epgenius.org, please open a File ID Support [#🎟️〢ticket](https://discord.com/channels/1382432361840509039/1400145242606534710).",
+    "FREE_DISABLED_MSG": "❌ There may be an issue with your playlist's free updates. Please open a File ID Support [#🎟️〢ticket](https://discord.com/channels/1382432361840509039/1400145242606534710) with your Playlist Key and the error code `Free Update Disabled`",
+
+    "FREE_24_MSG": "⚠️ Please wait 24 hours from playlist creation. Check again after {check_after}.",
+
+    "FREE_MISS_MSG": "❌ There may be an issue with your playlist's free updates. Please open a File ID Support [#🎟️〢ticket](https://discord.com/channels/1382432361840509039/1400145242606534710) with your Playlist Key and the error code `Missing Free Update Sync Timestamp(s): \"{missing_sync}\"`",
     
-    "SUPPORTER_DONATION_MSG": "💝 Supporter updates are currently disabled. To enable supporter updates, please consider [making a donation to {pl_owner}]({donation_url}). After donating, please open an Unlock Supporters Features [#🎟️〢ticket](https://discord.com/channels/1382432361840509039/1400145242606534710) to activate supporter updates. If you've already donated and it's been over 24 hours since your ticket was closed, please open a new ticket.",
+    "FREE_SYNCLAG_MSG": "❌ There may be an issue with your playlist's free updates. Please open a File ID Support [#🎟️〢ticket](https://discord.com/channels/1382432361840509039/1400145242606534710) with your Playlist Key and the error code `Free Update Sync > 5 Hours`",
     
-    "SUPPORTER_DONATION_ERROR_MSG": "⚠️ There may be an issue with your supporter updates. If it has been more than 24 hours since your Unlock Supporters Features ticket was closed, please open an Unlock Supporters Features [#🎟️〢ticket](https://discord.com/channels/1382432361840509039/1400145242606534710).",
+    "FREE_SYNC_MSG": "⚠️ Your playlist is still syncing. Check again after {check_after}.",
     
-    "SUPPORTER_THANK_MSG_GENERIC": "✨ Thank you for your donation! Your support helps keep EPGenius running.",
+    "SUPPORTER_DONATION_MSG": "🦥 To enable supporter updates, please consider [donating to {pl_owner}]({donation_url}). After donating, please open an Unlock Supporter Features [#🎟️〢ticket](https://discord.com/channels/1382432361840509039/1400145242606534710) to activate supporter updates.",
+
+    "SUPPORTER_MISS_MSG": "❌ There may be an issue with your playlist's supporter updates. If it has been more than 24 hours since your Unlock Supporter Features ticket was closed, please open an Unlock Supporter Features [#🎟️〢ticket](https://discord.com/channels/1382432361840509039/1400145242606534710) with your Playlist Key and the error code `Missing Supporter Update Sync Timestamp`",
+    
+    "SUPPORTER_SYNCLAG_MSG": "❌ There may be an issue with your playlist's supporter updates. Please open an Unlock Supporter Features [#🎟️〢ticket](https://discord.com/channels/1382432361840509039/1400145242606534710) with your Playlist Key and the error code `Supporter Update Sync > 36 Hours`",
+    
+    "SUPPORTER_THANK_MSG_GENERIC": "🔥 Thank you for your donation! Your support helps keep EPGenius running.",
     
     "USER_LOOKUP_ERROR_MSG": "❌ No matching playlist(s) found. Please check your input and try again. If you still need help, please visit [#🚑〢help](https://discord.com/channels/1382432361840509039/1383563895913844786).",
     
@@ -297,10 +307,21 @@ def create_file_info_embed(record, playlist_details, is_mod=False):
         color=discord.Color.blue()
     )
     
-    if is_mod:
+    info_messages = []
+    
+    playlist_creation_date = parse_timestamp(record.get('uploaded_at'))
+    last_update_owner = parse_timestamp(record.get('last_update_owner'))
+    pl_owner_last_update_str = playlist_details.get('pl_owner_last_update') if playlist_details else None
+    pl_owner_last_update = parse_timestamp(pl_owner_last_update_str) if pl_owner_last_update_str else None
+    valid = record.get('valid')
+    auto_update = record.get('auto_update')
+    now = datetime.now(timezone.utc)
+    
+    # ROW 1: Playlist Owner, Playlist Number, Service Provider
+    if playlist_details:
         embed.add_field(
-            name="Playlist Key",
-            value=f"`{record.get('id')}`",
+            name="Playlist Owner",
+            value=playlist_details['pl_owner'] or "N/A",
             inline=True
         )
     
@@ -316,107 +337,111 @@ def create_file_info_embed(record, playlist_details, is_mod=False):
             value=playlist_details['provider'] or "N/A",
             inline=True
         )
-        
+    
+    # ROW 2: Playlist Link, EPG Link + spacer
+    export_url = build_export_url(record.get('drive_file_id'))
+    embed.add_field(
+        name="Playlist Link",
+        value=f"[Download]({export_url})",
+        inline=True
+    )
+    
+    if playlist_details and playlist_details.get('epg_url'):
         embed.add_field(
-            name="Playlist Owner",
-            value=playlist_details['pl_owner'] or "N/A",
-            inline=True
-        )
-        
-        export_url = build_export_url(record.get('drive_file_id'))
-        embed.add_field(
-            name="Playlist Link",
-            value=f"[Download]({export_url})",
-            inline=True
-        )
-        
-        if playlist_details['epg_url']:
-            embed.add_field(
-                name="EPG Link",
-                value=f"[View EPG]({playlist_details['epg_url']})",
-                inline=True
-            )
-    else:
-        export_url = build_export_url(record.get('drive_file_id'))
-        embed.add_field(
-            name="Playlist Link",
-            value=f"[Download]({export_url})",
+            name="EPG Link",
+            value=f"[Download]({playlist_details['epg_url']})",
             inline=True
         )
     
-    if is_mod:
-        discord_id = record.get('discord_id')
+    embed.add_field(name="\u200b", value="\u200b", inline=True)
+    
+    # ROW 3: Free Updates, Last Free Update + spacer
+    if not valid:
         embed.add_field(
-            name="Discord User ID",
-            value=f"`{discord_id}`",
-            inline=True
-        )
-        
-        embed.add_field(
-            name="File Owner",
-            value=record.get('file_owner') or "N/A",
-            inline=True
-        )
-    
-    pl_owner_name = playlist_details.get('pl_owner') if playlist_details else None
-    pl_owner_last_update_str = playlist_details.get('pl_owner_last_update') if playlist_details else None
-    
-    if pl_owner_name and pl_owner_last_update_str:
-        pl_owner_dt = parse_timestamp(pl_owner_last_update_str)
-        if pl_owner_dt:
-            formatted = format_datetime(pl_owner_dt)
-            if formatted:
-                embed.add_field(
-                    name=f"Last {pl_owner_name} Update",
-                    value=formatted,
-                    inline=True
-                )
-    
-    uploaded_dt = parse_timestamp(record.get('uploaded_at'))
-    if uploaded_dt:
-        formatted = format_datetime(uploaded_dt)
-        if formatted:
-            embed.add_field(
-                name="Playlist Creation Date",
-                value=formatted,
-                inline=True
-            )
-    
-    info_messages = []
-    
-    valid = record.get('valid')
-    if valid:
-        embed.add_field(
-            name="Playlist Owner Updates",
-            value="✅ Enabled",
-            inline=False
-        )
-    else:
-        embed.add_field(
-            name="Playlist Owner Updates",
+            name="Free Updates",
             value="❌ Disabled",
-            inline=False
+            inline=True
         )
-        info_messages.append(MESSAGES["PL_OWNER_ERROR_MSG"])
+        info_messages.append(MESSAGES["FREE_DISABLED_MSG"])
+    else:
+        embed.add_field(
+            name="Free Updates",
+            value="✅ Enabled",
+            inline=True
+        )
+        
+        if not playlist_creation_date:
+            info_messages.append("❌ Error: Missing playlist creation date.")
+        else:
+            playlist_age = (now - playlist_creation_date).total_seconds() / 3600
+            
+            if playlist_age <= 24:
+                check_after = playlist_creation_date + timedelta(hours=24)
+                info_messages.append(MESSAGES["FREE_24_MSG"].format(check_after=format_datetime(check_after)))
+            else:
+                if not last_update_owner or not pl_owner_last_update:
+                    missing_fields = []
+                    if not last_update_owner:
+                        missing_fields.append("Last Free Update")
+                    if not pl_owner_last_update:
+                        pl_owner = playlist_details.get('pl_owner', 'Owner') if playlist_details else 'Owner'
+                        missing_fields.append(f'Last "{pl_owner}" Update')
+                    
+                    info_messages.append(MESSAGES["FREE_MISS_MSG"].format(missing_sync=" and ".join(missing_fields)))
+                else:
+                    hours_behind = (pl_owner_last_update - last_update_owner).total_seconds() / 3600
+                    
+                    if hours_behind <= 0:
+                        pass
+                    elif hours_behind > 5:
+                        info_messages.append(MESSAGES["FREE_SYNCLAG_MSG"])
+                    else:
+                        check_after = pl_owner_last_update + timedelta(hours=5)
+                        info_messages.append(MESSAGES["FREE_SYNC_MSG"].format(check_after=format_datetime(check_after)))
     
-    auto_update = record.get('auto_update')
+    if last_update_owner:
+        embed.add_field(
+            name="Last Free Update",
+            value=format_datetime(last_update_owner),
+            inline=True
+        )
+    else:
+        embed.add_field(
+            name="Last Free Update",
+            value="N/A",
+            inline=True
+        )
+    
+    embed.add_field(name="\u200b", value="\u200b", inline=True)
+    
+    # ROW 4: Supporter Updates, Last Supporter Update + spacer
+    last_update_provider = record.get('last_update_provider')
+    
     if auto_update:
         embed.add_field(
             name="Supporter Updates",
             value="✅ Enabled",
-            inline=False
+            inline=True
         )
         thank_msg = playlist_details.get('thank_message') if playlist_details else None
         if thank_msg:
             info_messages.append(thank_msg)
         else:
             info_messages.append(MESSAGES["SUPPORTER_THANK_MSG_GENERIC"])
+        
+        if not last_update_provider or last_update_provider == "NULL":
+            info_messages.append(MESSAGES["SUPPORTER_MISS_MSG"])
+        else:
+            is_old = check_timestamp_age(last_update_provider, 36)
+            if is_old:
+                info_messages.append(MESSAGES["SUPPORTER_SYNCLAG_MSG"])
     else:
         embed.add_field(
             name="Supporter Updates",
             value="❌ Disabled",
-            inline=False
+            inline=True
         )
+        
         donation_url = playlist_details.get('donation_url') if playlist_details else None
         pl_owner = playlist_details.get('pl_owner') if playlist_details else None
         if donation_url:
@@ -426,70 +451,101 @@ def create_file_info_embed(record, playlist_details, is_mod=False):
             )
             info_messages.append(donation_msg)
         else:
-            info_messages.append("💝 Supporter updates are currently disabled. Please check back later or contact a mod.")
+            info_messages.append("⚠️ Supporter updates are currently unavailable for this playlist. Please check back later or contact a mod.")
     
-    last_update_owner = record.get('last_update_owner')
-    pl_owner_last_update_str = playlist_details.get('pl_owner_last_update') if playlist_details else None
-    
-    show_owner_update_datetime = True
-    
-    if not last_update_owner or last_update_owner == "NULL":
-        if not valid:
-            show_owner_update_datetime = False
-        else:
-            info_messages.append(MESSAGES["PL_OWNER_ERROR_MSG"])
-            show_owner_update_datetime = False
-    else:
-        if pl_owner_last_update_str:
-            owner_update_dt = parse_timestamp(last_update_owner)
-            pl_owner_update_dt = parse_timestamp(pl_owner_last_update_str)
-            
-            if owner_update_dt and pl_owner_update_dt:
-                hours_behind = (pl_owner_update_dt - owner_update_dt).total_seconds() / 3600
-                if hours_behind > 4:
-                    info_messages.append(MESSAGES["PL_OWNER_ERROR_MSG"])
-    
-    if show_owner_update_datetime and last_update_owner and last_update_owner != "NULL":
-        owner_dt = parse_timestamp(last_update_owner)
-        if owner_dt:
-            formatted = format_datetime(owner_dt)
-            if formatted:
-                embed.add_field(
-                    name="Last Playlist Owner Update",
-                    value=formatted,
-                    inline=True
-                )
-    
-    last_update_provider = record.get('last_update_provider')
-    
-    show_supporter_update_datetime = True
-    
-    if not last_update_provider or last_update_provider == "NULL":
-        if not auto_update:
-            show_supporter_update_datetime = False
-        else:
-            info_messages.append(MESSAGES["SUPPORTER_DONATION_ERROR_MSG"])
-            show_supporter_update_datetime = False
-    else:
-        is_old = check_timestamp_age(last_update_provider, 36)
-        if is_old:
-            info_messages.append(MESSAGES["SUPPORTER_DONATION_ERROR_MSG"])
-    
-    if show_supporter_update_datetime and last_update_provider and last_update_provider != "NULL":
+    if last_update_provider and last_update_provider != "NULL":
         provider_dt = parse_timestamp(last_update_provider)
         if provider_dt:
             formatted = format_datetime(provider_dt)
-            if formatted:
-                embed.add_field(
-                    name="Last Supporter Update",
-                    value=formatted,
-                    inline=True
-                )
+            embed.add_field(
+                name="Last Supporter Update",
+                value=formatted if formatted else "N/A",
+                inline=True
+            )
+        else:
+            embed.add_field(
+                name="Last Supporter Update",
+                value="N/A",
+                inline=True
+            )
+    else:
+        embed.add_field(
+            name="Last Supporter Update",
+            value="N/A",
+            inline=True
+        )
+    
+    embed.add_field(name="\u200b", value="\u200b", inline=True)
+    
+    # ROW 5: Last Owner Update, Creation Date, Playlist Key
+    pl_owner_name = playlist_details.get('pl_owner') if playlist_details else None
+    if pl_owner_name and pl_owner_last_update_str:
+        pl_owner_dt = parse_timestamp(pl_owner_last_update_str)
+        if pl_owner_dt:
+            formatted = format_datetime(pl_owner_dt)
+            embed.add_field(
+                name=f"Last {pl_owner_name} Update",
+                value=formatted if formatted else "N/A",
+                inline=True
+            )
+        else:
+            embed.add_field(
+                name=f"Last {pl_owner_name} Update",
+                value="N/A",
+                inline=True
+            )
+    else:
+        embed.add_field(
+            name="Last Owner Update",
+            value="N/A",
+            inline=True
+        )
+    
+    if playlist_creation_date:
+        formatted = format_datetime(playlist_creation_date)
+        embed.add_field(
+            name="Playlist Creation Date",
+            value=formatted if formatted else "N/A",
+            inline=True
+        )
+    else:
+        embed.add_field(
+            name="Playlist Creation Date",
+            value="N/A",
+            inline=True
+        )
+    
+    embed.add_field(
+        name="Playlist Key",
+        value=f"`{record.get('id')}`",
+        inline=True
+    )
+    
+    # ROW 6 (if mod): File ID, Discord User ID, File Owner
+    if is_mod:
+        embed.add_field(
+            name="File ID",
+            value=f"`{record.get('drive_file_id')}`",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="Discord User ID",
+            value=f"`{record.get('discord_id')}`",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="File Owner",
+            value=record.get('file_owner') or "N/A",
+            inline=True
+        )
     
     if info_messages:
         embed.description = "\n\n".join(info_messages)
     
     return embed
+
 
 async def register_file_async(file_identifier, duid):
     """Register a file with the API"""
