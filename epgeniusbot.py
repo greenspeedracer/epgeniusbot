@@ -796,15 +796,15 @@ async def playlistinfo(interaction: discord.Interaction):
 @bot.tree.command(name="playlistinfomod", description="View All Registered Playlists for a Specified User")
 @app_commands.default_permissions(manage_messages=True)
 @app_commands.checks.has_any_role(*MOD_ROLE_IDS)
-@app_commands.describe(discord_user_id="Discord User ID")
-async def playlistinfomod(interaction: discord.Interaction, discord_user_id: str):
+@app_commands.describe(DUID="Discord User ID")
+async def playlistinfomod(interaction: discord.Interaction, DUID: str):
     if interaction.channel_id != MODCHANNEL_ID:
         await interaction.response.send_message("This command can only be used in [modlogs](https://discord.com/channels/1382432361840509039/1383551896354164800).", ephemeral=False)
         return
     
     await interaction.response.defer(ephemeral=False)
     
-    duid = discord_user_id
+    duid = DUID
     result = await get_all_user_playlists(duid)
     
     if not result:
@@ -830,6 +830,8 @@ async def playlistinfomod(interaction: discord.Interaction, discord_user_id: str
         view.message = message
 
 @bot.tree.command(name="playlistinfoid", description="View Specific Playlist by File ID/Playlist URL")
+@app_commands.default_permissions(manage_messages=True)
+@app_commands.checks.has_any_role(*MOD_ROLE_IDS)
 @app_commands.describe(playlist="Enter your File ID or Google Drive Share/Export URL")
 async def playlistinfoid(interaction: discord.Interaction, playlist: str):
     await interaction.response.defer(ephemeral=True)
