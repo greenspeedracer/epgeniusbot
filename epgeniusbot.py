@@ -796,15 +796,15 @@ async def playlistinfo(interaction: discord.Interaction):
 @bot.tree.command(name="playlistinfomod", description="View All Registered Playlists for a Specified User")
 @app_commands.default_permissions(manage_messages=True)
 @app_commands.checks.has_any_role(*MOD_ROLE_IDS)
-@app_commands.describe(DUID="Discord User ID")
-async def playlistinfomod(interaction: discord.Interaction, DUID: str):
+@app_commands.describe(duid="Discord User ID")
+async def playlistinfomod(interaction: discord.Interaction, duid: str):
     if interaction.channel_id != MODCHANNEL_ID:
         await interaction.response.send_message("This command can only be used in [modlogs](https://discord.com/channels/1382432361840509039/1383551896354164800).", ephemeral=False)
         return
     
     await interaction.response.defer(ephemeral=False)
     
-    duid = DUID
+    duid = duid
     result = await get_all_user_playlists(duid)
     
     if not result:
