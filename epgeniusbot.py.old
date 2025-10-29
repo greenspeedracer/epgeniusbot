@@ -27,11 +27,13 @@ EPGENIUS_GUILD_ID = int(os.getenv("EPGENIUS_GUILD_ID"))
 GSR_GUILD = discord.Object(id=int(os.getenv("GSR_GUILD_ID")))
 EPGENIUS_GUILD = discord.Object(id=int(os.getenv("EPGENIUS_GUILD_ID")))
 ALL_GUILDS = [GSR_GUILD, EPGENIUS_GUILD]
+BOTLOGCHANNEL_ID = int(os.getenv("BOTLOGCHANNEL_ID"))
+BOTLOGCHANNEL = None
 MODCHANNEL_ID = int(os.getenv("MODCHANNEL_ID"))
 MODCHANNEL = None
+SC_UPDATES_CHANNEL_ID = int(os.getenv("SC_UPDATES_CHANNEL_ID"))
 SC_UPDATES_CHANNEL = None
 MOD_MENTIONS = " ".join([f"<@&{role_id}>" for role_id in MOD_ROLE_IDS])
-SC_UPDATES_CHANNEL_ID = int(os.getenv("SC_UPDATES_CHANNEL_ID"))
 GSR_ID = int(os.getenv("GSR_ID", ""))
 GSR_MENTION = f"<@{GSR_ID}>"
 REPO_URL = "https://epgenius.org"
@@ -791,7 +793,45 @@ async def playlistinfo(interaction: discord.Interaction):
         message = await interaction.followup.send(embed=embed, view=view, ephemeral=True)
         view.message = message
 
+@bot.tree.command(name="playlistinfomod", description="View All Registered Playlists for a Specified User")
+@app_commands.default_permissions(manage_messages=True)
+@app_commands.checks.has_any_role(*MOD_ROLE_IDS)
+@app_commands.describe(duid="Discord User ID")
+async def playlistinfomod(interaction: discord.Interaction, duid: str):
+    if interaction.channel_id != MODCHANNEL_ID:
+        await interaction.response.send_message("This command can only be used in [modlogs](https://discord.com/channels/1382432361840509039/1383551896354164800).", ephemeral=False)
+        return
+    
+    await interaction.response.defer(ephemeral=False)
+    
+    duid = duid
+    result = await get_all_user_playlists(duid)
+    
+    if not result:
+        await interaction.followup.send(MESSAGES["USER_LOOKUP_TIMEOUT_MSG"], ephemeral=False)
+        return
+    
+    if not isinstance(result, list) or len(result) == 0:
+        await interaction.followup.send(MESSAGES["USER_LOOKUP_ERROR_MSG"], ephemeral=False)
+        return
+    
+    playlists_data = await fetch_playlists_data()
+    
+    if len(result) == 1:
+        record = result[0]
+        list_id = record.get("list_id")
+        playlist_details = get_playlist_details(list_id, playlists_data)
+        embed = create_file_info_embed(record, playlist_details, is_mod=True)
+        await interaction.followup.send(embed=embed, ephemeral=False)
+    else:
+        view = PlaylistPaginationView(result, playlists_data, is_mod=True)
+        embed = view.get_embed()
+        message = await interaction.followup.send(embed=embed, view=view, ephemeral=False)
+        view.message = message
+
 @bot.tree.command(name="playlistinfoid", description="View Specific Playlist by File ID/Playlist URL")
+@app_commands.default_permissions(manage_messages=True)
+@app_commands.checks.has_any_role(*MOD_ROLE_IDS)
 @app_commands.describe(playlist="Enter your File ID or Google Drive Share/Export URL")
 async def playlistinfoid(interaction: discord.Interaction, playlist: str):
     await interaction.response.defer(ephemeral=True)
@@ -1013,8 +1053,8 @@ async def check_site_status(url, timeout):
         return (0, "UNKNOWN_ERROR", f"Unexpected error: {type(e).__name__} - {str(e)}")
 
 async def send_repo_alert(status_code, error_type, error_msg):
-    if MODCHANNEL is None:
-        print(f"MODCHANNEL not initialized")
+    if BOTLOGCHANNEL is None:
+        print(f"BOTLOGCHANNEL not initialized")
         return
     
     if status_code == 0:
@@ -1036,10 +1076,10 @@ async def send_repo_alert(status_code, error_type, error_msg):
     if details:
         embed.add_field(name="Details", value=details, inline=False)
 
-    await MODCHANNEL.send(content=MOD_MENTIONS, embed=embed)
+    await BOTLOGCHANNEL.send(content=MOD_MENTIONS, embed=embed)
 
 async def send_repo_recovery_alert():
-    if MODCHANNEL is None:
+    if BOTLOGCHANNEL is None:
         return
     
     embed = discord.Embed(
@@ -1049,7 +1089,7 @@ async def send_repo_recovery_alert():
     )
     embed.add_field(name="Status", value="200 OK", inline=False)
     
-    await MODCHANNEL.send(content=MOD_MENTIONS, embed=embed)
+    await BOTLOGCHANNEL.send(content=MOD_MENTIONS, embed=embed)
 
 async def fetch_playlists():
     try:
@@ -1353,16 +1393,24 @@ async def on_ready():
     print(f"GSR Guild ID: {GSR_GUILD_ID}")
     print(f"EPGenius Guild ID: {EPGENIUS_GUILD_ID}")
 
+    global BOTLOGCHANNEL
+    BOTLOGCHANNEL = bot.get_channel(BOTLOGCHANNEL_ID)
+    if BOTLOGCHANNEL:
+        print(f"Bot log channel found: {BOTLOGCHANNEL.name}")
+    else:
+        print(f"Warning: Could not find bot log channel with ID {BOTLOGCHANNEL_ID}")
+    
+    if not check_repo_status.is_running():
+        check_repo_status.start()
+        print(f"EPGenius server status monitoring started for {REPO_URL}")
+
+    
     global MODCHANNEL
     MODCHANNEL = bot.get_channel(MODCHANNEL_ID)
     if MODCHANNEL:
         print(f"Mod channel found: {MODCHANNEL.name}")
     else:
-        print(f"Warning: Could not find mod channel with ID {MODCHANNEL_ID}")
-    
-    if not check_repo_status.is_running():
-        check_repo_status.start()
-        print(f"EPGenius server status monitoring started for {REPO_URL}")
+        print(f"Warning: Could not find mod channel with ID {MODCHANNEL_ID}")    
 
     global SC_UPDATES_CHANNEL
     SC_UPDATES_CHANNEL = bot.get_channel(SC_UPDATES_CHANNEL_ID)
