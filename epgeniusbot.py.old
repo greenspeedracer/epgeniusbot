@@ -122,14 +122,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 # ============================================================================ 
 
 async def get_all_user_playlists(duid):
-    """
-    Fetch all playlists for a user by DUID
-    
-    Raises:
-        FileNotFoundError: User has no registered playlists (404)
-        TimeoutError: API request timed out
-        ConnectionError: Network or API error
-    """
+    """Fetch all playlists for a user by DUID"""
     headers = {
         "Authorization": BOT_API_TOKEN,
         "Content-Type": "application/json"
@@ -141,32 +134,26 @@ async def get_all_user_playlists(duid):
     
     async with aiohttp.ClientSession() as session:
         try:
-            async with session.get(
+            async with session.post(
                 GET_API_URL, 
                 headers=headers, 
                 json=json_data,
                 timeout=aiohttp.ClientTimeout(total=10)
             ) as response:
                 if response.status == 404:
-                    text = await response.text()
-                    print(f"Error: {response.status} - {text}")
-                    raise FileNotFoundError(f"No playlists registered for user {duid}")
-                
-                if response.status == 200:
+                    return []  # Empty list for 404
+                elif response.status == 200:
                     return await response.json()
                 else:
                     text = await response.text()
                     print(f"Error: {response.status} - {text}")
-                    raise ConnectionError(f"API returned status {response.status}")
-                    
+                    return None
         except asyncio.TimeoutError:
             print(f"Request timed out for user {duid}")
-            raise TimeoutError("API request timed out")
-        except FileNotFoundError:
-            raise  # Re-raise to preserve exception type
-        except aiohttp.ClientError as e:
+            return None
+        except Exception as e:
             print(f"Request failed: {e}")
-            raise ConnectionError(f"Network error: {e}")
+            return None
 
 class PlaylistPaginationView(View):
     def __init__(self, records, playlists_data, is_mod=False):
@@ -818,91 +805,35 @@ async def playlistinfo(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
     
     duid = str(interaction.user.id)
+    result = await get_all_user_playlists(duid)
     
-    try:
-        result = await get_all_user_playlists(duid)
-        
-        # Check if result is valid
-        if not isinstance(result, list) or len(result) == 0:
-            await interaction.followup.send(
-                MESSAGES["USER_LOOKUP_ERROR_MSG"],
-                ephemeral=True
-            )
-            return
-        
-        playlists_data = await fetch_playlists_data()
-        
-        if len(result) == 1:
-            record = result[0]
-            list_id = record.get('list_id')
-            playlist_details = get_playlist_details(list_id, playlists_data)
-            embed = create_file_info_embed(record, playlist_details, is_mod=False)
-            await interaction.followup.send(embed=embed, ephemeral=True)
-        else:
-            view = PlaylistPaginationView(result, playlists_data, is_mod=False)
-            embed = view.get_embed()
-            message = await interaction.followup.send(embed=embed, view=view, ephemeral=True)
-            view.message = message
-    
-    except FileNotFoundError:
-        # User has no registered playlists (404 response)
-        await interaction.followup.send(
-            MESSAGES["USER_LOOKUP_ERROR_MSG"],
-            ephemeral=True
-        )
-        return
-    
-    except TimeoutError:
-        # Actual timeout occurred
+    if not result:
         await interaction.followup.send(
             MESSAGES["USER_LOOKUP_TIMEOUT_MSG"],
             ephemeral=True
         )
         return
     
-    except ConnectionError:
-        # Network or other API error
+    if not isinstance(result, list) or len(result) == 0:
         await interaction.followup.send(
-            "An error occurred while contacting the API. Please try again later.",
+            MESSAGES["USER_LOOKUP_ERROR_MSG"],
             ephemeral=True
         )
         return
-
-
-# @bot.tree.command(name="playlistinfo", description="View All Your Registered Playlists")
-# async def playlistinfo(interaction: discord.Interaction):
-#     await interaction.response.defer(ephemeral=True)
     
-#     duid = str(interaction.user.id)
-#     result = await get_all_user_playlists(duid)
+    playlists_data = await fetch_playlists_data()
     
-#     if not result:
-#         await interaction.followup.send(
-#             MESSAGES["USER_LOOKUP_TIMEOUT_MSG"],
-#             ephemeral=True
-#         )
-#         return
-    
-#     if not isinstance(result, list) or len(result) == 0:
-#         await interaction.followup.send(
-#             MESSAGES["USER_LOOKUP_ERROR_MSG"],
-#             ephemeral=True
-#         )
-#         return
-    
-#     playlists_data = await fetch_playlists_data()
-    
-#     if len(result) == 1:
-#         record = result[0]
-#         list_id = record.get('list_id')
-#         playlist_details = get_playlist_details(list_id, playlists_data)
-#         embed = create_file_info_embed(record, playlist_details, is_mod=False)
-#         await interaction.followup.send(embed=embed, ephemeral=True)
-#     else:
-#         view = PlaylistPaginationView(result, playlists_data, is_mod=False)
-#         embed = view.get_embed()
-#         message = await interaction.followup.send(embed=embed, view=view, ephemeral=True)
-#         view.message = message
+    if len(result) == 1:
+        record = result[0]
+        list_id = record.get('list_id')
+        playlist_details = get_playlist_details(list_id, playlists_data)
+        embed = create_file_info_embed(record, playlist_details, is_mod=False)
+        await interaction.followup.send(embed=embed, ephemeral=True)
+    else:
+        view = PlaylistPaginationView(result, playlists_data, is_mod=False)
+        embed = view.get_embed()
+        message = await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+        view.message = message
 
 # ============================================================================
 # BOT /PLAYLISTINFOMOD COMMAND
@@ -919,81 +850,30 @@ async def playlistinfomod(interaction: discord.Interaction, duid: str):
     
     await interaction.response.defer(ephemeral=False)
     
-    try:
-        result = await get_all_user_playlists(duid)
-        
-        # Check if result is valid
-        if not isinstance(result, list) or len(result) == 0:
-            await interaction.followup.send(MESSAGES["USER_LOOKUP_ERROR_MSG"], ephemeral=False)
-            return
-        
-        playlists_data = await fetch_playlists_data()
-        
-        if len(result) == 1:
-            record = result[0]
-            list_id = record.get("list_id")
-            playlist_details = get_playlist_details(list_id, playlists_data)
-            embed = create_file_info_embed(record, playlist_details, is_mod=True)
-            await interaction.followup.send(embed=embed, ephemeral=False)
-        else:
-            view = PlaylistPaginationView(result, playlists_data, is_mod=True)
-            embed = view.get_embed()
-            message = await interaction.followup.send(embed=embed, view=view, ephemeral=False)
-            view.message = message
+    duid = duid
+    result = await get_all_user_playlists(duid)
     
-    except FileNotFoundError:
-        # User has no registered playlists (404 response)
-        await interaction.followup.send(MESSAGES["USER_LOOKUP_ERROR_MSG"], ephemeral=False)
-        return
-    
-    except TimeoutError:
-        # Actual timeout occurred
+    if not result:
         await interaction.followup.send(MESSAGES["USER_LOOKUP_TIMEOUT_MSG"], ephemeral=False)
         return
     
-    except ConnectionError:
-        # Network or other API error
-        await interaction.followup.send(
-            "An error occurred while contacting the API. Please try again later.",
-            ephemeral=False
-        )
+    if not isinstance(result, list) or len(result) == 0:
+        await interaction.followup.send(MESSAGES["USER_LOOKUP_ERROR_MSG"], ephemeral=False)
         return
-
-# @bot.tree.command(name="playlistinfomod", description="View All Registered Playlists for a Specified User")
-# @app_commands.default_permissions(manage_messages=True)
-# @app_commands.checks.has_any_role(*MOD_ROLE_IDS)
-# @app_commands.describe(duid="Discord User ID")
-# async def playlistinfomod(interaction: discord.Interaction, duid: str):
-#     if interaction.channel_id != MODCHANNEL_ID:
-#         await interaction.response.send_message("This command can only be used in [modlogs](https://discord.com/channels/1382432361840509039/1383551896354164800).", ephemeral=False)
-#         return
     
-#     await interaction.response.defer(ephemeral=False)
+    playlists_data = await fetch_playlists_data()
     
-#     duid = duid
-#     result = await get_all_user_playlists(duid)
-    
-#     if not result:
-#         await interaction.followup.send(MESSAGES["USER_LOOKUP_TIMEOUT_MSG"], ephemeral=False)
-#         return
-    
-#     if not isinstance(result, list) or len(result) == 0:
-#         await interaction.followup.send(MESSAGES["USER_LOOKUP_ERROR_MSG"], ephemeral=False)
-#         return
-    
-#     playlists_data = await fetch_playlists_data()
-    
-#     if len(result) == 1:
-#         record = result[0]
-#         list_id = record.get("list_id")
-#         playlist_details = get_playlist_details(list_id, playlists_data)
-#         embed = create_file_info_embed(record, playlist_details, is_mod=True)
-#         await interaction.followup.send(embed=embed, ephemeral=False)
-#     else:
-#         view = PlaylistPaginationView(result, playlists_data, is_mod=True)
-#         embed = view.get_embed()
-#         message = await interaction.followup.send(embed=embed, view=view, ephemeral=False)
-#         view.message = message
+    if len(result) == 1:
+        record = result[0]
+        list_id = record.get("list_id")
+        playlist_details = get_playlist_details(list_id, playlists_data)
+        embed = create_file_info_embed(record, playlist_details, is_mod=True)
+        await interaction.followup.send(embed=embed, ephemeral=False)
+    else:
+        view = PlaylistPaginationView(result, playlists_data, is_mod=True)
+        embed = view.get_embed()
+        message = await interaction.followup.send(embed=embed, view=view, ephemeral=False)
+        view.message = message
 
 # ============================================================================
 # BOT /PLAYLISTINFOID COMMAND
@@ -1008,93 +888,35 @@ async def playlistinfoid(interaction: discord.Interaction, playlist: str):
     
     duid = str(interaction.user.id)
     
-    try:
-        result = await get_file_info_async(playlist, duid)
-        
-        # Check if result has the expected structure
-        if result.post('status') != 'ok':
-            await interaction.followup.send(
-                MESSAGES["USER_LOOKUP_ERROR_MSG"],
-                ephemeral=True
-            )
-            return
-        
-        record = result.get('file')
-        if not record:
-            await interaction.followup.send(
-                MESSAGES["USER_LOOKUP_ERROR_MSG"],
-                ephemeral=True
-            )
-            return
-        
-        playlists_data = await fetch_playlists_data()
-        playlist_details = get_playlist_details(record.get('list_id'), playlists_data)
-        
-        embed = create_file_info_embed(record, playlist_details, is_mod=False)
-        await interaction.followup.send(embed=embed, ephemeral=True)
+    result = await get_file_info_async(playlist, duid)
     
-    except FileNotFoundError:
-        # Playlist not found (404 response)
+    if not result:
         await interaction.followup.send(
             MESSAGES["USER_LOOKUP_ERROR_MSG"],
             ephemeral=True
         )
         return
     
-    except TimeoutError:
-        # Actual timeout occurred
+    if result.get('status') != 'ok':
         await interaction.followup.send(
             MESSAGES["USER_LOOKUP_TIMEOUT_MSG"],
             ephemeral=True
         )
         return
     
-    except ConnectionError:
-        # Network or other API error
+    record = result.get('file')
+    if not record:
         await interaction.followup.send(
-            "An error occurred while contacting the API. Please try again later.",
+            MESSAGES["USER_LOOKUP_ERROR_MSG"],
             ephemeral=True
         )
-
-
-# @bot.tree.command(name="playlistinfoid", description="View Specific Playlist by File ID/Playlist URL")
-# @app_commands.default_permissions(manage_messages=True)
-# @app_commands.checks.has_any_role(*MOD_ROLE_IDS)
-# @app_commands.describe(playlist="Enter your File ID or Google Drive Share/Export URL")
-# async def playlistinfoid(interaction: discord.Interaction, playlist: str):
-#     await interaction.response.defer(ephemeral=True)
+        return
     
-#     duid = str(interaction.user.id)
+    playlists_data = await fetch_playlists_data()
+    playlist_details = get_playlist_details(record.get('list_id'), playlists_data)
     
-#     result = await get_file_info_async(playlist, duid)
-    
-#     if not result:
-#         await interaction.followup.send(
-#             MESSAGES["USER_LOOKUP_ERROR_MSG"],
-#             ephemeral=True
-#         )
-#         return
-    
-#     if result.get('status') != 'ok':
-#         await interaction.followup.send(
-#             MESSAGES["USER_LOOKUP_TIMEOUT_MSG"],
-#             ephemeral=True
-#         )
-#         return
-    
-#     record = result.get('file')
-#     if not record:
-#         await interaction.followup.send(
-#             MESSAGES["USER_LOOKUP_ERROR_MSG"],
-#             ephemeral=True
-#         )
-#         return
-    
-#     playlists_data = await fetch_playlists_data()
-#     playlist_details = get_playlist_details(record.get('list_id'), playlists_data)
-    
-#     embed = create_file_info_embed(record, playlist_details, is_mod=False)
-#     await interaction.followup.send(embed=embed, ephemeral=True)
+    embed = create_file_info_embed(record, playlist_details, is_mod=False)
+    await interaction.followup.send(embed=embed, ephemeral=True)
 
 # ============================================================================
 # BOT /SERVICEINFO COMMAND

@@ -76,7 +76,7 @@ MESSAGES = {
     
     "SUPPORTER_THANK_MSG_GENERIC": "🔥 Thank you for your donation! Your support helps keep EPGenius running.",
     
-    "USER_LOOKUP_ERROR_MSG": "❌ No matching playlist(s) found. Please check your input and try again. If you still need help, please visit [#🚑〢help](https://discord.com/channels/1382432361840509039/1383563895913844786).",
+    "USER_LOOKUP_ERROR_MSG": "❌ No matching playlist(s) found. Please ensure you have registered your playlists with the `/playlistregister` command. If you still need help, please visit [#🚑〢help](https://discord.com/channels/1382432361840509039/1383563895913844786).",
     
     "USER_LOOKUP_TIMEOUT_MSG": "⏱️ The lookup failed. Please try again later. If this error persists, please notify a mod in [#🚑〢help](https://discord.com/channels/1382432361840509039/1383563895913844786).",
 }
