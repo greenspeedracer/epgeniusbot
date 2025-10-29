@@ -1366,6 +1366,165 @@ async def gdrive(interaction: discord.Interaction, url: str):
     await interaction.response.send_message(f"Playlist Export Link:\n{download_url}", ephemeral=True)
 
 # ============================================================================
+# BOT /DDPAUSE COMMAND (EPGenius)
+# ============================================================================  
+
+bot.repo_detector_paused = False
+
+@bot.tree.command(name="ddpause", description="Pause EPGenius.org Down Detector")
+@app_commands.default_permissions(manage_messages=True)
+@app_commands.checks.has_any_role(*MOD_ROLE_IDS)
+async def ddpause(interaction: discord.Interaction):
+    if interaction.channel_id != MODCHANNEL_ID:
+        await interaction.response.send_message("This command can only be used in [modlogs](https://discord.com/channels/1382432361840509039/1383551896354164800).", ephemeral=True)
+        return
+    
+    if bot.repo_detector_paused:
+        await interaction.response.send_message(f"{REPO_URL} down detector is already paused.", ephemeral=True)
+        return
+    
+    bot.repo_detector_paused = True
+    check_repo_status.cancel()
+    
+    embed = discord.Embed(
+        title="⏸️ EPGenius Down Detector Paused",
+        description=f"Monitoring for {REPO_URL} has been paused",
+        color=discord.Color.orange()
+    )
+    await interaction.response.send_message(embed=embed)
+
+
+# ============================================================================
+# BOT /DDRESUME COMMAND (EPGenius)
+# ============================================================================  
+
+@bot.tree.command(name="ddresume", description="Resume EPGenius.org Down Detector")
+@app_commands.default_permissions(manage_messages=True)
+@app_commands.checks.has_any_role(*MOD_ROLE_IDS)
+async def ddresume(interaction: discord.Interaction):
+    if interaction.channel_id != MODCHANNEL_ID:
+        await interaction.response.send_message("This command can only be used in [modlogs](https://discord.com/channels/1382432361840509039/1383551896354164800).", ephemeral=True)
+        return
+    
+    if not bot.repo_detector_paused:
+        await interaction.response.send_message(f"{REPO_URL} down detector is already running.", ephemeral=True)
+        return
+    
+    bot.repo_detector_paused = False
+    if not check_repo_status.is_running():
+        check_repo_status.start()
+    
+    embed = discord.Embed(
+        title="▶️ EPGenius Down Detector Resumed",
+        description=f"Monitoring for {REPO_URL} has been resumed",
+        color=discord.Color.green()
+    )
+    await interaction.response.send_message(embed=embed)
+
+
+# ============================================================================
+# BOT /DDSTATUS COMMAND (EPGenius)
+# ============================================================================
+
+@bot.tree.command(name="ddstatus", description="Check EPGenius.org Down Detector Status")
+@app_commands.default_permissions(manage_messages=True)
+@app_commands.checks.has_any_role(*MOD_ROLE_IDS)
+async def ddstatus(interaction: discord.Interaction):
+    if interaction.channel_id != MODCHANNEL_ID:
+        await interaction.response.send_message("This command can only be used in [modlogs](https://discord.com/channels/1382432361840509039/1383551896354164800).", ephemeral=True)
+        return
+
+    status = "Paused ⏸️" if bot.repo_detector_paused else "Running ▶️"
+    color = discord.Color.orange() if bot.repo_detector_paused else discord.Color.green()
+    
+    embed = discord.Embed(
+        title="EPGenius Down Detector Status",
+        description=f"Status: **{status}**\nMonitoring: {REPO_URL}",
+        color=color
+    )
+    await interaction.response.send_message(embed=embed)
+
+
+# ============================================================================
+# BOT /DDPAUSESC COMMAND (StreamCheck)
+# ============================================================================  
+
+bot.sc_detector_paused = False
+
+@bot.tree.command(name="ddpausesc", description="Pause StreamCheck.pro Down Detector")
+@app_commands.default_permissions(manage_messages=True)
+@app_commands.checks.has_any_role(*MOD_ROLE_IDS)
+async def ddpausesc(interaction: discord.Interaction):
+    if interaction.channel_id != MODCHANNEL_ID:
+        await interaction.response.send_message("This command can only be used in [modlogs](https://discord.com/channels/1382432361840509039/1383551896354164800).", ephemeral=True)
+        return
+    
+    if bot.sc_detector_paused:
+        await interaction.response.send_message(f"{SC_URL} down detector is already paused.", ephemeral=True)
+        return
+    
+    bot.sc_detector_paused = True
+    check_sc_status.cancel()
+    
+    embed = discord.Embed(
+        title="⏸️ StreamCheck Down Detector Paused",
+        description=f"Monitoring for {SC_URL} has been paused",
+        color=discord.Color.orange()
+    )
+    await interaction.response.send_message(embed=embed)
+
+
+# ============================================================================
+# BOT /DDRESUMESC COMMAND (StreamCheck)
+# ============================================================================  
+
+@bot.tree.command(name="ddresumesc", description="Resume StreamCheck.pro Down Detector")
+@app_commands.default_permissions(manage_messages=True)
+@app_commands.checks.has_any_role(*MOD_ROLE_IDS)
+async def ddresumesc(interaction: discord.Interaction):
+    if interaction.channel_id != MODCHANNEL_ID:
+        await interaction.response.send_message("This command can only be used in [modlogs](https://discord.com/channels/1382432361840509039/1383551896354164800).", ephemeral=True)
+        return
+    
+    if not bot.sc_detector_paused:
+        await interaction.response.send_message(f"{SC_URL} down detector is already running.", ephemeral=True)
+        return
+    
+    bot.sc_detector_paused = False
+    if not check_sc_status.is_running():
+        check_sc_status.start()
+    
+    embed = discord.Embed(
+        title="▶️ StreamCheck Down Detector Resumed",
+        description=f"Monitoring for {SC_URL} has been resumed",
+        color=discord.Color.green()
+    )
+    await interaction.response.send_message(embed=embed)
+
+
+# ============================================================================
+# BOT /DDSTATUSSC COMMAND (StreamCheck)
+# ============================================================================
+
+@bot.tree.command(name="ddstatussc", description="Check StreamCheck.pro Down Detector Status")
+@app_commands.default_permissions(manage_messages=True)
+@app_commands.checks.has_any_role(*MOD_ROLE_IDS)
+async def ddstatussc(interaction: discord.Interaction):
+    if interaction.channel_id != MODCHANNEL_ID:
+        await interaction.response.send_message("This command can only be used in [modlogs](https://discord.com/channels/1382432361840509039/1383551896354164800).", ephemeral=True)
+        return
+
+    status = "Paused ⏸️" if bot.sc_detector_paused else "Running ▶️"
+    color = discord.Color.orange() if bot.sc_detector_paused else discord.Color.green()
+    
+    embed = discord.Embed(
+        title="StreamCheck Down Detector Status",
+        description=f"Status: **{status}**\nMonitoring: {SC_URL}",
+        color=color
+    )
+    await interaction.response.send_message(embed=embed)       
+
+# ============================================================================
 # BOT /KILLEPGBOT COMMAND
 # ============================================================================     
 
@@ -1373,14 +1532,22 @@ async def gdrive(interaction: discord.Interaction, url: str):
 @app_commands.default_permissions(manage_messages=True) 
 @app_commands.checks.has_any_role(*MOD_ROLE_IDS)
 async def killepgbot(interaction: discord.Interaction):
+    if interaction.channel_id != MODCHANNEL_ID:
+        await interaction.response.send_message("This command can only be used in [modlogs](https://discord.com/channels/1382432361840509039/1383551896354164800).", ephemeral=True)
+        return
     await interaction.response.send_message("Killing EPGeniusBot")
     await bot.close()
+
+# ============================================================================
+# HANDLE MISSING ROLE AND UNDEFINED ERRORS
+# ============================================================================     
 
 @bot.tree.error
 async def on_app_command_error(interaction, error):
     if isinstance(error, MissingAnyRole):
         await interaction.response.send_message(
             "You don't have the required role(s) to run this command.",
+            ephemeral=True
         )
     else:
         print(f"Unhandled error: {error}")

@@ -393,7 +393,7 @@ def create_file_info_embed(record, playlist_details, is_mod=False):
             value="❌ Disabled",
             inline=True
         )
-        info_messages.append(MESSAGES["FREE_DISABLED_MSG"])
+        # info_messages.append(MESSAGES["FREE_DISABLED_MSG"])
     else:
         embed.add_field(
             name="Free Updates",
@@ -402,13 +402,14 @@ def create_file_info_embed(record, playlist_details, is_mod=False):
         )
         
         if not playlist_creation_date:
-            info_messages.append("❌ Error: Missing playlist creation date.")
+            # info_messages.append("❌ Error: Missing playlist creation date.")
+            pass
         else:
             playlist_age = (now - playlist_creation_date).total_seconds() / 3600
             
             if playlist_age <= 24:
                 check_after = playlist_creation_date + timedelta(hours=24)
-                info_messages.append(MESSAGES["FREE_24_MSG"].format(check_after=format_datetime(check_after)))
+                # info_messages.append(MESSAGES["FREE_24_MSG"].format(check_after=format_datetime(check_after)))
             else:
                 if not last_update_owner or not pl_owner_last_update:
                     missing_fields = []
@@ -418,15 +419,17 @@ def create_file_info_embed(record, playlist_details, is_mod=False):
                         pl_owner = playlist_details.get('pl_owner', 'Owner') if playlist_details else 'Owner'
                         missing_fields.append(f'Last "{pl_owner}" Update')
                     
-                    info_messages.append(MESSAGES["FREE_MISS_MSG"].format(missing_sync=" and ".join(missing_fields)))
+                    # info_messages.append(MESSAGES["FREE_MISS_MSG"].format(missing_sync=" and ".join(missing_fields)))
                 else:
                     if last_update_owner < pl_owner_last_update:
                         owner_update_plus_5h = pl_owner_last_update + timedelta(hours=5)
                         
                         if owner_update_plus_5h < now:
-                            info_messages.append(MESSAGES["FREE_SYNCLAG_MSG"])
+                            # info_messages.append(MESSAGES["FREE_SYNCLAG_MSG"])
+                            pass
                         else:
-                            info_messages.append(MESSAGES["FREE_SYNC_MSG"].format(check_after=format_datetime(owner_update_plus_5h)))
+                            # info_messages.append(MESSAGES["FREE_SYNC_MSG"].format(check_after=format_datetime(owner_update_plus_5h)))
+                            pass
 
     if last_update_owner:
         embed.add_field(
