@@ -134,7 +134,7 @@ async def get_all_user_playlists(duid):
     
     async with aiohttp.ClientSession() as session:
         try:
-            async with session.post(
+            async with session.get(
                 GET_API_URL, 
                 headers=headers, 
                 json=json_data,
