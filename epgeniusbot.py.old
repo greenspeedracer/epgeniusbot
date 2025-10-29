@@ -601,16 +601,30 @@ async def register_file_async(file_identifier, duid):
     
     async with aiohttp.ClientSession() as session:
         try:
-            async with session.post(POST_API_URL, headers=headers, json=data) as response:
+            async with session.post(
+                POST_API_URL, 
+                headers=headers, 
+                json=data,
+                timeout=aiohttp.ClientTimeout(total=10)
+            ) as response:
                 if response.status == 200:
                     return await response.json()
+                elif response.status == 404:
+                    error_data = await response.json()
+                    return {"status": "not_found", "error_detail": error_data.get("error")}
                 else:
+                    text = await response.text()
+                    print(f"Error: {response.status} - {text}")
                     return {
                         "error": "api_error",
                         "status": response.status,
-                        "message": await response.text()
+                        "message": text
                     }
+        except asyncio.TimeoutError:
+            print(f"Request timed out for file {file_id}")
+            return {"error": "timeout"}
         except Exception as e:
+            print(f"Request failed: {e}")
             return {"error": "request_failed", "exception": str(e)}
 
 
