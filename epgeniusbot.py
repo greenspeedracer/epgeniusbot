@@ -1,4 +1,3 @@
-
 import discord
 from discord import app_commands, Permissions
 from discord.ext import commands, tasks
@@ -17,6 +16,7 @@ from urllib.parse import quote
 from datetime import datetime, timezone, timedelta
 from thefuzz import fuzz, process
 from dotenv import load_dotenv
+from dotenv import dotenv_values
 
 load_dotenv()
 
@@ -116,6 +116,7 @@ intents.guilds = True
 intents.message_content = True
 intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents)
+
 
 # ============================================================================
 # EPGENIUS PLAYLIST INFO API CALLS
@@ -792,7 +793,7 @@ class ServiceInfoModal(Modal, title="Service Information"):
             await interaction.followup.send(
                 "❌ Unable to retrieve service information. Please check your DNS and credentials and try again.",
                 ephemeral=True
-            )        
+            )
 
 # ============================================================================
 # BOT /PLAYLISTREGISTER COMMAND
@@ -824,7 +825,7 @@ async def playlistinfo(interaction: discord.Interaction):
     duid = str(interaction.user.id)
     result = await get_all_user_playlists(duid)
     
-    if not result:
+    if result is None:
         await interaction.followup.send(
             MESSAGES["USER_LOOKUP_TIMEOUT_MSG"],
             ephemeral=True
@@ -869,8 +870,8 @@ async def playlistinfomod(interaction: discord.Interaction, duid: str):
     
     duid = duid
     result = await get_all_user_playlists(duid)
-    
-    if not result:
+
+    if result is None:
         await interaction.followup.send(MESSAGES["USER_LOOKUP_TIMEOUT_MSG"], ephemeral=False)
         return
     
